@@ -125,14 +125,36 @@ const routes = {
   },
 };
 
-app.use(paymentMiddleware(routes, resourceServer));
+// Health check — registered before payment middleware so it's always accessible.
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'Agent B Provider (DataAnalyzer)',
+    recipient: RECIPIENT_ADDRESS,
+    network: NETWORK,
+    facilitator: USE_CDP ? 'CDP (production)' : FACILITATOR_URL,
+    bazaarEnabled: true,
+    storachaReady: true,
+    endpoints: {
+      analyze: {
+        method: 'POST',
+        path: '/analyze',
+        price: '$0.01',
+        discoverable: true,
+      },
+    },
+  });
+});
 
-console.log('✅ Payment middleware configured (Bazaar discovery enabled)');
+// syncFacilitatorOnStart = false → defer facilitator validation to first request.
+// The default (true) fires httpServer.initialize() eagerly, which fetches from
+// x402.org/facilitator. If that fetch fails (transient DNS/network on Railway),
+// the promise rejects unhandled and crashes the process before any request arrives.
+// Passing false stores initPromise = null, so validation runs inside the middleware's
+// own await on the first matching request — where errors are caught properly.
+app.use(paymentMiddleware(routes, resourceServer, undefined, undefined, false));
 
-/**
- * CSV Analysis Function
- * This is the actual data processing logic
- */
+console.log('✅ Payment middleware configured (Bazaar discovery enabled, lazy init)');
 
 async function analyzeCSV(csvContent) {
   return new Promise((resolve, reject) => {
@@ -326,36 +348,26 @@ app.post('/analyze', async (req, res) => {
   }
 });
 
-/**
- * Health check endpoint
- * No payment required
- */
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    service: 'Agent B Provider (DataAnalyzer)',
-    recipient: RECIPIENT_ADDRESS,
-    network: NETWORK,
-    facilitator: USE_CDP ? 'CDP (production)' : FACILITATOR_URL,
-    bazaarEnabled: true,
-    storachaReady: true,
-    endpoints: {
-      analyze: {
-        method: 'POST',
-        path: '/analyze',
-        price: '$0.01',
-        discoverable: true,
-      },
-    },
-  });
-});
+async function warmFacilitator(url, maxAttempts = 5) {
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      console.log(`✅ Facilitator reachable (${res.status})`);
+      return true;
+    } catch (err) {
+      console.warn(`⏳ Facilitator check ${i}/${maxAttempts} failed: ${err.message}`);
+      if (i < maxAttempts) await new Promise(r => setTimeout(r, 3000 * i));
+    }
+  }
+  console.warn('⚠️ Facilitator not reachable after retries — first request will attempt init');
+  return false;
+}
 
-/**
- * Start server
- */
 async function start() {
   try {
-    // Start Express server
+    const facilitatorUrl = USE_CDP ? null : FACILITATOR_URL;
+    if (facilitatorUrl) await warmFacilitator(facilitatorUrl);
+
     app.listen(PORT, () => {
       console.log(`\n🤖 Agent B Provider running on http://localhost:${PORT}`);
       console.log(`💰 Recipient: ${RECIPIENT_ADDRESS}`);

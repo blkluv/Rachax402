@@ -163,10 +163,37 @@ const routes = {
   },
 };
 
-// Apply x402 payment middleware with Bazaar-enabled routes
-app.use(paymentMiddleware(routes, resourceServer));
+// Health check — registered before payment middleware so it's always accessible.
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'Storacha x402 Agent',
+    recipient: RECIPIENT_ADDRESS,
+    network: NETWORK,
+    facilitator: USE_CDP ? 'CDP (production)' : FACILITATOR_URL,
+    bazaarEnabled: true,
+    endpoints: {
+      upload: {
+        method: 'POST',
+        path: '/upload',
+        price: '$0.1',
+        discoverable: true,
+      },
+      retrieve: {
+        method: 'GET',
+        path: '/retrieve',
+        price: '$0.005',
+        discoverable: true,
+      },
+    },
+  });
+});
 
-console.log('✅ Payment middleware registered with Bazaar discovery');
+// syncFacilitatorOnStart = false → defer facilitator validation to first request.
+// Prevents unhandled promise rejection crash when x402.org is transiently unreachable.
+app.use(paymentMiddleware(routes, resourceServer, undefined, undefined, false));
+
+console.log('✅ Payment middleware registered with Bazaar discovery (lazy init)');
 
 // Upload endpoint - protected by x402 (multer errors caught by error handler below)
 app.post('/upload', (req, res, next) => {
@@ -240,40 +267,40 @@ app.get('/retrieve', async (req, res) => {
   }
 });
 
-// Health check endpoint (no payment required)
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    service: 'Storacha x402 Agent',
-    recipient: RECIPIENT_ADDRESS,
-    network: NETWORK,
-    facilitator: USE_CDP ? 'CDP (production)' : FACILITATOR_URL,
-    bazaarEnabled: true,
-    endpoints: {
-      upload: {
-        method: 'POST',
-        path: '/upload',
-        price: '$0.1',
-        discoverable: true,
-      },
-      retrieve: {
-        method: 'GET',
-        path: '/retrieve',
-        price: '$0.005',
-        discoverable: true,
-      },
-    },
-  });
-});
+async function warmFacilitator(url, maxAttempts = 5) {
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      console.log(`✅ Facilitator reachable (${res.status})`);
+      return true;
+    } catch (err) {
+      console.warn(`⏳ Facilitator check ${i}/${maxAttempts} failed: ${err.message}`);
+      if (i < maxAttempts) await new Promise(r => setTimeout(r, 3000 * i));
+    }
+  }
+  console.warn('⚠️ Facilitator not reachable after retries — first request will attempt init');
+  return false;
+}
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Storacha x402 Agent server running on http://localhost:${PORT}`);
-  console.log(`💰 Recipient: ${RECIPIENT_ADDRESS}`);
-  console.log(`🌐 Network: ${NETWORK}`);
-  console.log(`📡 Facilitator: ${USE_CDP ? 'CDP (production)' : FACILITATOR_URL}`);
-  console.log(`🔍 Bazaar Discovery: ENABLED`);
-  console.log(`\n📋 Available endpoints:`);
-  console.log(`   POST /upload  - $0.1 per upload`);
-  console.log(`   GET /retrieve - $0.005 per retrieval`);
-});
+async function start() {
+  try {
+    const facilitatorUrl = USE_CDP ? null : FACILITATOR_URL;
+    if (facilitatorUrl) await warmFacilitator(facilitatorUrl);
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Storacha x402 Agent server running on http://localhost:${PORT}`);
+      console.log(`💰 Recipient: ${RECIPIENT_ADDRESS}`);
+      console.log(`🌐 Network: ${NETWORK}`);
+      console.log(`📡 Facilitator: ${USE_CDP ? 'CDP (production)' : FACILITATOR_URL}`);
+      console.log(`🔍 Bazaar Discovery: ENABLED`);
+      console.log(`\n📋 Available endpoints:`);
+      console.log(`   POST /upload  - $0.1 per upload`);
+      console.log(`   GET /retrieve - $0.005 per retrieval`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    process.exit(1);
+  }
+}
+
+start();
