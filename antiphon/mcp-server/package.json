@@ -1,0 +1,31 @@
+{
+  "name": "@rachax402/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server exposing ERC-8004 agent discovery, x402 payment, and Storacha storage tools for any LLM host",
+  "type": "module",
+  "bin": {
+    "rachax402-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "erc-8004",
+    "x402",
+    "storacha",
+    "agentkit",
+    "rachax402"
+  ],
+  "author": "Neha Kumari",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "@storacha/client": "^2.0.3",
+    "dotenv": "^17.3.1",
+    "viem": "^2.45.1",
+    "zod": "^3.24.0"
+  }
+}

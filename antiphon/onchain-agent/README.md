@@ -1,0 +1,238 @@
+# Rachax402 — Onchain Agent (AgentA)
+
+Autonomous agent orchestrator for the Rachax402 decentralised agent marketplace on Base Sepolia. Built with [Coinbase AgentKit](https://github.com/coinbase/agentkit), Anthropic Claude, Vercel AI SDK v5, ERC-8004 identity/reputation, x402 payments, and Storacha IPFS storage.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        LLM Hosts                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
+│  │ Next.js UI   │  │ Cursor /     │  │ Any MCP-compatible │    │
+│  │ (this app)   │  │ Claude Desktop│  │ app                │    │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬───────────┘    │
+│         │                 │                    │                │
+│         ▼                 └────────┬───────────┘                │
+│  ┌──────────────┐          ┌──────▼──────────┐                  │
+│  │ Claude +     │          │ @rachax402/     │                  │
+│  │ AgentKit +   │          │ mcp-server      │                  │
+│  │ ERC-8004 +   │          │ (stdio)         │                  │
+│  │ Storacha     │          │ 8 tools         │                  │
+│  │ providers    │          └──────┬──────────┘                  │
+│  └──────┬───────┘                 │                             │
+│         │                         │                             │
+└─────────┼─────────────────────────┼─────────────────────────────┘
+          │                         │
+          ▼                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   On-Chain (Base Sepolia)                        │
+│  ERC-8004 IdentityRegistry   0x1352abA587fF...                  │
+│  ERC-8004 ReputationRegistry 0x3FdD300147...                    │
+└─────────────────────────────────────────────────────────────────┘
+          │  discoverAgents() → agentCard CID → IPFS → endpoint
+          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               Railway Services (x402-gated)                     │
+│  DataAnalyzer    POST /analyze   $0.01 USDC  0xEAB418...       │
+│  StorachaStorage POST /upload    $0.10 USDC  0x9D48b6...       │
+│                  GET  /retrieve  $0.005 USDC                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Agentic Flow
+
+```
+User uploads CSV
+  → AgentA calls discoverService('analyze') → reads ERC-8004 on-chain
+  → AgentA calls stageCsvForAnalysis → free upload to Storacha IPFS → inputCID
+  → AgentA calls X402 POST /analyze with inputCID
+      → Railway returns 402 → AgentA signs EIP-712 → facilitator verifies → paid
+  → AgentA receives resultCID + stats
+  → AgentA calls checkCanRate → postReputation (on-chain 5/5 with proofCID)
+  → User sees results + IPFS link + reputation tx
+```
+
+## Getting Started
+
+### Prerequisites
+
+| Key | Source |
+|-----|--------|
+| `ANTHROPIC_API_KEY` | [Anthropic Console](https://console.anthropic.com/) |
+| `CDP_API_KEY_NAME` + `CDP_API_KEY_PRIVATE_KEY` | [CDP Portal](https://portal.cdp.coinbase.com/) |
+| `STORACHA_AGENT_PRIVATE_KEY` + `STORACHA_AGENT_DELEGATION` | Storacha CLI (`storacha key create`) |
+
+### Install & Run
+
+```sh
+cd onchain-agent
+pnpm install
+cp .env.example .env   # fill in keys
+pnpm dev               # http://localhost:3000
+```
+
+## MCP Server (`../mcp-server/`)
+
+Standalone MCP server exposing the same ERC-8004 + x402 + Storacha capabilities to any LLM host via stdio transport. Not coupled to the Next.js app.
+
+### Tools Exposed
+
+| Tool | Description |
+|------|-------------|
+| `discover_service` | Query ERC-8004 for capability → endpoint, price, reputation |
+| `get_agent_reputation` | Read on-chain reputation score for any agent address |
+| `stage_csv` | Free upload CSV to Storacha IPFS → inputCID |
+| `analyze_csv` | Pay DataAnalyzer via x402, submit inputCID → resultCID + stats |
+| `store_file` | Pay StorachaStorage via x402, upload file → CID |
+| `retrieve_file` | Pay StorachaStorage via x402, retrieve by CID |
+| `check_can_rate` | Check ERC-8004 rate limit before posting reputation |
+| `post_reputation` | Post on-chain 1–5 rating with proof CID |
+
+### Setup
+
+```sh
+cd mcp-server
+npm install && npm run build
+cp .env.example .env   # fill in RACHAX402_PRIVATE_KEY + Storacha keys
+```
+
+### Connect to Cursor
+
+Add to `.cursor/mcp.json` (workspace root):
+
+```json
+{
+  "mcpServers": {
+    "rachax402": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
+The server self-loads its own `.env` — no secrets needed in the Cursor config. Restart Cursor after editing `mcp.json`.
+
+### Connect to Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rachax402": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
+### How It Works
+
+```
+LLM Host (Cursor/Claude Desktop)
+  │  JSON-RPC over stdio
+  ▼
+McpServer (rachax402, 8 tools)
+  │
+  ├─ discover_service ──► ERC-8004 IdentityRegistry (on-chain read)
+  │                        → getAgentsByCapability → getAgentCard → IPFS fetch
+  │                        → returns { endpoint, price, payTo, reputation }
+  │
+  ├─ stage_csv ──────────► Storacha IPFS (free, server's own credentials)
+  │
+  ├─ analyze_csv ────────► Railway DataAnalyzer /analyze
+  ├─ store_file ─────────► Railway StorachaStorage /upload
+  ├─ retrieve_file ──────► Railway StorachaStorage /retrieve
+  │                        (all three: attempt → 402 → sign EIP-712 → retry with X-PAYMENT)
+  │
+  └─ post_reputation ───► ERC-8004 ReputationRegistry (on-chain write)
+```
+
+---
+
+## Troubleshooting & Fixes
+
+### 1. Vercel AI SDK v5 Compatibility
+
+**`parameters` → `inputSchema` (create-agent.ts)**
+
+AgentKit's `getVercelAITools()` returns tools in AI SDK v4 format where schemas live in `parameters`. AI SDK v5's Anthropic provider reads only `inputSchema`. Without the fix, Anthropic API returns `input_schema.type: Field required`. The `sanitizeAgentKitTools()` function in `create-agent.ts` detects v4-format tools and wraps them with `jsonSchema()` to produce valid `inputSchema`.
+
+**`fullStream` property renames (route.ts)**
+
+AI SDK v5 changed `fullStream` part properties:
+- `text-delta`: `textDelta` → `delta`
+- `tool-result`: `result` → `output`
+
+The stream handler uses a fallback chain to support both:
+```ts
+const td = (part as any).textDelta ?? (part as any).delta ?? (part as any).text;
+const output = (part as any).output ?? (part as any).result;
+```
+
+**`onFinish` multi-turn memory (route.ts)**
+
+Previously `onFinish` only saved `text`, losing all tool-call and tool-result context between turns. Fixed to persist `response.messages` which includes the full assistant + tool-call + tool-result sequence. Claude now sees prior tool interactions in follow-up turns.
+
+### 2. Base64 Stripping Bug (route.ts)
+
+A regex stripped base64 blobs from **all** messages including the current one. Claude then hallucinated a short base64 (decoded to ~6 garbage bytes) and stopped the pipeline. Fix: only strip base64 from **history** messages, never the current turn.
+
+### 3. AgentB Railway Crash (`agentB-server.js`, `storacha-server.js`)
+
+`paymentMiddleware` with `syncFacilitatorOnStart = true` (default) eagerly called `httpServer.initialize()`. A transient network failure fetching `x402.org/facilitator` caused an unhandled promise rejection that crashed the process. Fixes applied:
+
+1. `syncFacilitatorOnStart = false` — defer facilitator sync
+2. `/health` endpoint moved before `paymentMiddleware` — always accessible
+3. `warmFacilitator()` retry loop added in `start()` — graceful pre-check
+
+### 4. ERC-8004 Agent Card Update (`update-services.js`)
+
+`updateAgentCard(newCID)` was only passing 1 arg but the contract requires 2: `(string newCID, string[] newCapabilityTags)`. Fixed to read existing capability tags via `getAgentCapabilities()` and pass them through. Also added an IPFS fallback for when the gateway times out fetching the old card.
+
+### 5. SCHEMA FIX (WethActionProvider_wrap_eth / "type: None" bug) in Onchain-agent
+
+Root cause: `getVercelAITools()` returns plain objects with `parameters: JSONSchema`. Some AgentKit actions have schemas with `{ type: "None" }` which OpenAI rejects. AI SDK v5 reads `.parameters` (the JSON Schema) directly from the tool object to send to the API — it does NOT use `.inputSchema` for plain objects.
+
+- Attempts that did NOT work:
+   - ❌ Attempt 1: `setting parameters: { type: "object", properties: {} } on the object`
+     → SDK cached or picked up the original; had no effect.
+   
+   -  ❌ Attempt 2: `tool({ inputSchema: z.object({}) }) wrapping`
+     → tool() creates a new object with inputSchema but the SDK still reads .parameters; the new object either had no .parameters (undefined → error) or the old one leaked.
+
+   -  ❌ Attempt 3: `tool({ description, inputSchema: emptyZod, execute })`
+     → Same issue: SDK path for plain AgentKit tool objects reads .parameters, not .inputSchema.
+
+- ✅ Correct fix: spread-replace the broken `.parameters` field DIRECTLY on the object.
+{ ...tool, parameters: SAFE_SCHEMA }  where SAFE_SCHEMA = { type: "object", properties: {} }
+This guarantees the object the SDK iterates over has a valid .parameters, full stop.
+
+> Additionally: removed wethActionProvider + pythActionProvider from prepare-agentkit.ts (not used in Rachax402; both produce broken schemas).
+
+---
+
+## On-Chain Contracts
+
+| Contract | Address | Network |
+|----------|---------|---------|
+| ERC-8004 IdentityRegistry | `0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb` | Base Sepolia |
+| ERC-8004 ReputationRegistry | `0x3FdD300147940a35F32AdF6De36b3358DA682B5c` | Base Sepolia |
+| DataAnalyzer Agent | `0xEAB418143643557C74479d38E773A64E35B5f6c9` | Base Sepolia |
+| StorachaStorage Agent | `0x9D48b65Bb45f144CBC5662Fd3Fd011659371D0f8` | Base Sepolia |
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `app/api/agent/route.ts` | API route — streaming, base64 handling, multi-turn memory |
+| `app/api/agent/create-agent.ts` | Agent singleton — system prompt, tool merging, schema sanitization |
+| `app/api/agent/prepare-agentkit.ts` | AgentKit + CdpSmartWalletProvider setup |
+| `app/api/agent/providers/erc8004Provider.ts` | ERC-8004 discovery + reputation tools |
+| `app/api/agent/providers/storachaProvider.ts` | Storacha staging + paid store/retrieve tools |
+| `app/hooks/useAgent.ts` | React hook — stream parsing (`0:` text, `b:` tool-call, `a:` tool-result) |
+| `../mcp-server/src/index.ts` | MCP server entry — stdio transport, 8 tools |
+| `../server/agentB-server.js` | DataAnalyzer x402-gated Express service |
+| `../server/storacha-server.js` | StorachaStorage x402-gated Express service |

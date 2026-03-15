@@ -1,0 +1,12 @@
+ignoredBuiltDependencies:
+  - '@opensea/seaport-js'
+  - bigint-buffer
+  - bufferutil
+  - keccak
+  - opensea-js
+  - secp256k1
+  - sharp
+  - utf-8-validate
+
+onlyBuiltDependencies:
+  - '@coinbase/x402'

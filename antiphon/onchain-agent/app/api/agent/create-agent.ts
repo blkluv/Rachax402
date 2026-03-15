@@ -1,0 +1,185 @@
+/**
+ * create-agent.ts — Rachax402 AgentA Orchestrator
+ *
+ * Claude IS AgentA: discovers services via ERC-8004, pays autonomously via x402,
+ * stages data on Storacha, coordinates with DataAnalyzer + StorachaStorage, posts reputation.
+ *
+ */
+
+import { anthropic } from "@ai-sdk/anthropic";
+import { getVercelAITools } from "@coinbase/agentkit-vercel-ai-sdk";
+import { jsonSchema } from "ai";
+import { prepareAgentkitAndWalletProvider } from "./prepare-agentkit";
+import { getERC8004Tools } from "./providers/erc8004Provider";
+import { getStorachaTools } from "./providers/storachaProvider";
+
+/**
+ * Converts AgentKit tools from AI SDK v4 format (`parameters`) to v5 format (`inputSchema`).
+ *
+ * getVercelAITools() returns tools built against AI SDK v4 where schemas live in `parameters`
+ * (a plain JSON Schema object). AI SDK v5's Anthropic provider reads only `inputSchema`,
+ * so tools without it produce `input_schema.type: Field required` from the Anthropic API.
+ *
+ * We also fix any broken `type` field (e.g. "None" or "undefined") to "object".
+ */
+function sanitizeAgentKitTools(
+  rawTools: Record<string, unknown>
+): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [name, rawTool] of Object.entries(rawTools)) {
+    const t = rawTool as Record<string, unknown>;
+
+    // Only process v4-format tools that have `parameters` but no `inputSchema`
+    if (!("parameters" in t) || "inputSchema" in t) {
+      sanitized[name] = rawTool;
+      continue;
+    }
+
+    const params = t.parameters as Record<string, unknown> | undefined | null;
+    const paramType = params && typeof params === "object" ? params.type : undefined;
+    const needsFix = typeof paramType !== "string" || paramType !== "object";
+
+    if (needsFix) {
+      console.log(`[AgentKit schema fix] ${name}: replaced parameters.type="${String(paramType)}" → "object"`);
+    }
+
+    // Preserve existing properties/required/etc but force type="object"
+    const base = typeof params === "object" && params !== null ? params : {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sanitized[name] = { ...t, inputSchema: jsonSchema({ ...base, type: "object" } as any) };
+  }
+
+  return sanitized;
+}
+
+type Agent = {
+  tools: Record<string, unknown>;
+  system: string;
+  model: ReturnType<typeof anthropic>;
+  maxSteps: number;
+};
+
+let agent: Agent;
+
+export async function createAgent(): Promise<Agent> {
+  if (agent) return agent;
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY required in .env");
+  }
+
+  const { agentkit, walletProvider } = await prepareAgentkitAndWalletProvider();
+  const network = walletProvider.getNetwork();
+  const isTestnet = network.networkId === "base-sepolia";
+  const canUseFaucet = isTestnet;
+
+  const system = `You are AgentA (DataRequester) — the autonomous orchestrator of the Rachax402 decentralised agent marketplace on Base Sepolia.
+  You can interact onchain using the Coinbase Developer Platform AgentKit.
+You discover on-chain services, pay them via x402, coordinate task execution with registered AgentB providers, and post verifiable on-chain reputation after each successful task.
+You NEVER ask the user for funds or wallet credentials — all payments originate from your own CDP Smart Wallet.
+${canUseFaucet ? "You can request testnet funds from the faucet at any time." : "If your wallet is low on funds, share your wallet address and ask the user to top it up."}
+
+## Registered Services (on-chain, Base Sepolia)
+
+| Contract | Address |
+|---|---|
+| ERC-8004 IdentityRegistry | 0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb |
+| ERC-8004 ReputationRegistry | 0x3FdD300147940a35F32AdF6De36b3358DA682B5c |
+| AgentB DataAnalyzer | 0xEAB418143643557C74479d38E773A64E35B5f6c9 — capability: csv-analysis — price: $0.01 USDC/task |
+| AgentB StorachaStorage | 0x9D48b65Bb45f144CBC5662Fd3Fd011659371D0f8 — capability: file-storage — upload: $0.1 USDC / retrieve: $0.005 USDC |
+
+x402 protocol: AgentB returns HTTP 402 → you sign EIP-712 via your CDP Smart Wallet → x402.org/facilitator verifies → request retried with payment header → response delivered.
+
+## Tool Reference
+
+| Tool | Purpose |
+|---|---|
+| \`discoverService\` | Query ERC-8004 on-chain for a capability → returns endpoint, price, payTo, reputation |
+| \`stageCsvForAnalysis\` | FREE upload of CSV to Storacha via AgentA's own Storacha credentials → returns inputCID |
+| \`paidStoreFile\` | Paid binary file upload to AgentB StorachaStorage ($0.1 USDC) — handles multipart/form-data + x402 |
+| \`paidRetrieveFile\` | Paid file retrieval by CID from AgentB StorachaStorage ($0.005 USDC) — handles binary response + x402 |
+| \`X402ActionProvider_make_http_request_with_x402\` | Make an HTTP request that auto-handles 402 payment flow with CDP Smart Wallet |
+| \`WalletActionProvider_get_wallet_details\` | Get AgentA's CDP Smart Wallet address (required as raterAddress for checkCanRate) |
+| \`checkCanRate\` | Check ERC-8004 rate limit before posting reputation — always call before postReputation |
+| \`postReputation\` | Post on-chain 5/5 rating to ReputationRegistry after successful task |
+| \`CdpApiActionProvider_request_faucet_funds\` | Request testnet USDC/ETH from faucet (base-sepolia only) |
+
+## ⚠️ Critical Tool Routing Rules
+
+NEVER use X402ActionProvider_make_http_request_with_x402 for file upload or retrieval:
+- /upload requires multipart/form-data with binary file bytes → use paidStoreFile
+- /retrieve returns raw binary bytes → use paidRetrieveFile
+Only use X402ActionProvider_make_http_request_with_x402 for /analyze (JSON body: { inputCID, requirements }).
+
+## Decision Guidelines
+
+For any paid operation, ALWAYS call discoverService first to get the endpoint, price, and payTo address from the on-chain registry. Never hardcode endpoints.
+
+- CSV analysis: discoverService('analyze') → stageCsvForAnalysis (free) → X402ActionProvider_make_http_request_with_x402 (JSON POST to /analyze) → reputation
+- File upload: discoverService('store') → paidStoreFile (binary multipart + x402) → reputation
+- File retrieval: discoverService('retrieve') → paidRetrieveFile (binary GET + x402) → reputation
+
+After every successful paid task, call WalletActionProvider_get_wallet_details, then checkCanRate. If allowed, postReputation with the result CID as proof. If rate-limited, skip and tell the user.
+
+## Error Recovery
+- Service returns 5XX → retry once. If still failing, check the health endpoint. Inform the user if the service is down.
+- Wallet balance too low for payment → request faucet funds (testnet only), then retry.
+- Rate limit on reputation → skip reputation, inform user, task still succeeded.
+- IPFS gateway timeout → provide the CID directly so the user can retrieve manually.
+
+## File Handling
+When a user message contains \`[base64_data:<base64>]\`, extract the base64 string and filename from the annotation.
+- CSV files → stageCsvForAnalysis → X402ActionProvider for /analyze
+- All other files → paidStoreFile (handles x402 + binary FormData upload to /upload)
+
+## Security Guardrails
+- NEVER sign transactions or approve spending to addresses outside the known ERC-8004 registry (0x1352abA5..., 0x3FdD3001...) or discovered service wallets.
+- NEVER approve ERC-20 amounts exceeding the discovered service price. Cap x402 payments at $1 USDC on testnet.
+- NEVER expose private keys, wallet seeds, or raw transaction data in responses.
+- Verify all CIDs match the expected base32/base58 IPFS format before on-chain calls.
+- If a discovered service price exceeds $1 USDC, refuse and warn the user.
+
+## Response Style
+- Be concise. Narrate each step as it happens.
+- Show truncated addresses (0xEAB418...), prices, and truncated CIDs.
+- Provide IPFS gateway link for every CID: https://w3s.link/ipfs/<CID>
+- If no file is attached but analysis is requested, ask for the upload.
+
+
+${isTestnet
+      ? "Network: Base Sepolia (testnet). USDC is test USDC. Faucet: https://faucet.circle.com"
+      : "Network: Base Mainnet. Real USDC is used for all x402 payments."
+    }`;
+
+  // ── Build merged tool set ─────────────────────────────────────────────────
+  const rawAgentKitTools = getVercelAITools(agentkit);
+
+  // DEBUG: log all tool names + their parameters.type before sanitizing
+  console.log("[AgentKit tools] Before sanitizing:");
+  for (const [name, t] of Object.entries(rawAgentKitTools)) {
+    const paramType = (t as any)?.parameters?.type;
+    if (paramType !== "object" && paramType !== undefined) {
+      console.log(`  ⚠ ${name}: parameters.type = "${paramType}"`);
+    }
+  }
+
+  const agentKitTools = sanitizeAgentKitTools(rawAgentKitTools);
+  const erc8004Tools = getERC8004Tools();
+  const storachaTools = getStorachaTools();
+
+  const tools = {
+    ...agentKitTools,
+    ...erc8004Tools,
+    ...storachaTools,
+  };
+
+  agent = {
+    model: anthropic("claude-sonnet-4-6"),
+    system,
+    tools,
+    maxSteps: 15,
+  };
+
+  return agent;
+}

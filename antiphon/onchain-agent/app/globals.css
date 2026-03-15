@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+  "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  --color-rachax-bg: #0a0b0f;
+  --color-rachax-surface: #12141c;
+  --color-rachax-edge: #1e2230;
+  --color-storacha: #00d4aa;
+  --color-erc8004: #8b5cf6;
+  --color-x402: #10b981;
+  --color-base: #0052ff;
+  --color-text: #e2e8f0;
+  --color-muted: #94a3b8;
+  --color-gradient-start: #6366f1;
+  --color-gradient-mid: #8b5cf6;
+  --color-gradient-end: #06b6d4;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background: linear-gradient(145deg, #0a0b0f 0%, #0f1220 40%, #0a0e18 100%);
+    color: var(--color-text);
+    font-family: var(--font-dm-sans, var(--font-sans));
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(18, 20, 28, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .glass-light {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .gradient-rachax {
+    background: linear-gradient(135deg, var(--color-gradient-start) 0%, var(--color-gradient-mid) 50%, var(--color-gradient-end) 100%);
+  }
+  .gradient-border {
+    position: relative;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(6, 182, 212, 0.1) 100%);
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  }
+  .text-gradient-rachax {
+    background: linear-gradient(135deg, #a78bfa 0%, #22d3ee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .shadow-glow-storacha {
+    box-shadow: 0 0 24px -4px rgba(0, 212, 170, 0.25);
+  }
+  .shadow-glow-erc {
+    box-shadow: 0 0 24px -4px rgba(139, 92, 246, 0.25);
+  }
+  .shadow-glow-x402 {
+    box-shadow: 0 0 24px -4px rgba(16, 185, 129, 0.25);
+  }
+  .card-3d {
+    transform: perspective(800px) translateZ(0);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card-3d:hover {
+    transform: perspective(800px) translateZ(4px);
+    box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.5);
+  }
+}
