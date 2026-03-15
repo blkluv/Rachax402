@@ -1,6 +1,7 @@
 node_modules/
 .env
 data/
+dist/
 .DS_Store
 .eliza/
 *.txt

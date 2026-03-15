@@ -190,8 +190,10 @@ AgentA has no hardcoded Railway URLs. The discovery chain:
 | `Cannot find module 'papaparse'` | Add `papaparse` to `dependencies` (not devDependencies) |
 | `RECIPIENT_ADDRESS is undefined` | Set the env var in Railway Variables panel |
 | `402` but payment fails | Wallet needs test USDC — faucet: https://faucet.circle.com |
-| Health check red on Railway | Set both `PORT` and `PROVIDER_PORT` for the analyzer service |
+| Analyzer 502 or SIGTERM on Railway | See **Railway PORT vs PROVIDER_PORT** below |
 | Storacha upload fails | Delegation must include `upload/add` and `space/blob/add` |
+
+**Railway PORT vs PROVIDER_PORT** — Railway injects `PORT` and routes traffic (and health checks) to it. The analyzer must listen on `PORT` when set. In code we use `PORT || PROVIDER_PORT || 8001`: on Railway the app binds to Railway’s `PORT`, so 502 and health-check SIGTERM go away. You can leave `PROVIDER_PORT` in Railway config; it’s only used when `PORT` is unset (e.g. local dev).
 
 ## 🌐 Going to Mainnet
 

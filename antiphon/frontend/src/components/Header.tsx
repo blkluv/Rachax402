@@ -1,4 +1,3 @@
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 
 const Header = () => {
@@ -20,15 +19,18 @@ const Header = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-xs text-muted-foreground">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-purple-500 text-xs text-muted-foreground">
             <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            Base Sepolia
+            ERC-8004
           </div>
-          <ConnectButton
-            chainStatus="icon"
-            showBalance={{ smallScreen: false, largeScreen: true }}
-            accountStatus={{ smallScreen: "avatar", largeScreen: "full" }}
-          />
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-green-500 text-xs text-muted-foreground">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+            x402
+          </div>
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-red-500 text-xs text-muted-foreground">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+            Storacha
+          </div>
         </div>
       </div>
     </motion.header>
