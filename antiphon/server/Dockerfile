@@ -47,9 +47,9 @@ COPY --chown=agentb:agentb package.json       .
 USER agentb
 
 # ── Health check ──────────────────────────────────────────────────
-# Uses the correct port variable for each service type:
-#   analyzer → PROVIDER_PORT (default 8001)
-#   storage  → PORT (default 8000)
+# Uses PORT (Railway) or service default; both servers listen on PORT when set.
+#   analyzer → PORT || PROVIDER_PORT (8001)
+#   storage  → PORT (8000)
 # Railway injects these; wget is available in alpine.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
   CMD wget -qO- "http://localhost:${PROVIDER_PORT:-${PORT:-8000}}/health" || exit 1
@@ -57,7 +57,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 # ── Entrypoint ────────────────────────────────────────────────────
 CMD ["sh", "-c", "\
   if [ \"$SERVICE_TYPE\" = 'analyzer' ]; then \
-    echo '🔬 Starting DataAnalyzer on port '${PROVIDER_PORT:-8001}'...'; \
+    echo '🔬 Starting DataAnalyzer on port '${PORT:-${PROVIDER_PORT:-8001}}'...'; \
     node agentB-server.js; \
   elif [ \"$SERVICE_TYPE\" = 'storage' ]; then \
     echo '📦 Starting StorachaStorage on port '${PORT:-8000}'...'; \
