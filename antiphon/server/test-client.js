@@ -260,16 +260,7 @@ export { testHealth, testUpload, testRetrieve, testWithoutPayment };
 
 
 /**
-ERC-8004 Agent Card Updater — Railway URLs
-════════════════════════════════════════════════════════════
-
-  Analyzer URL: https://rachax402-analyzer-service.up.railway.app
-  Storage URL:  https://rachax402-storacha-service.up.railway.app
-  Updating:     both
-
-
-═
-═
+-----old---
 ═
 🔄 Updating DataAnalyzer Agent Card
 ════════════════════════════════════════════════════════════
@@ -333,5 +324,72 @@ Verification steps:
      https://sepolia.basescan.org/address/0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb
 
 
+
+
+
+     --------latest new----
+
+
+     ═
+🔄 Updating DataAnalyzer Agent Card
+════════════════════════════════════════════════════════════
+   New endpoint: https://rachax402-analyzer-service.up.railway.app/analyze
+   📖 Current card CID: bafkreih2b4ryeii2c5ygt3qvey4b3d45ueplemquwaun52q4n4ljr7f74u
+   🔗 View: https://w3s.link/ipfs/bafkreih2b4ryeii2c5ygt3qvey4b3d45ueplemquwaun52q4n4ljr7f74u
+
+   📋 Card diff:
+      endpoint: "https://rachax402-analyzer-service.up.railway.app/analyze" → "https://rachax402-analyzer-service.up.railway.app/analyze"
+      pricing.baseRate: 0.0001 → 0.01
+   📤 New card uploaded: bafkreibsmzmoizg6f2de2fknkx4nthvn7tuhn3yf37wh77c4cczg3ej7oi
+   🔗 View: https://w3s.link/ipfs/bafkreibsmzmoizg6f2de2fknkx4nthvn7tuhn3yf37wh77c4cczg3ej7oi
+   📎 Preserving 3 capability tags: [csv-analysis, statistics, data-transformation]
+   📝 Submitting updateAgentCard for DataAnalyzer...
+   📝 Transaction submitted: 0x98e1b6e0c29bfd5ae96aa5863535da8899cb1a1da01b66321094ac40a5a2b862
+      Waiting for confirmation...
+   ✅ Confirmed! Block: 38961582 | Gas: 130314
+   🔍 BaseScan: https://sepolia.basescan.org/tx/0x98e1b6e0c29bfd5ae96aa5863535da8899cb1a1da01b66321094ac40a5a2b862
+
+🎉 DataAnalyzer card updated!
+   Old CID: bafkreih2b4ryeii2c5ygt3qvey4b3d45ueplemquwaun52q4n4ljr7f74u
+   New CID: bafkreibsmzmoizg6f2de2fknkx4nthvn7tuhn3yf37wh77c4cczg3ej7oi
+   Tx:      0x98e1b6e0c29bfd5ae96aa5863535da8899cb1a1da01b66321094ac40a5a2b862
+
+
+═
+═
+═
+🔄 Updating StorachaAgent Card
+════════════════════════════════════════════════════════════
+   New endpoint: https://rachax402-storacha-service.up.railway.app/upload
+   📖 Current card CID: bafkreicrjhvscge4c3io63m3kdl6sf5dejyha5qtqsm4gy7vkguqzc3cte
+   🔗 View: https://w3s.link/ipfs/bafkreicrjhvscge4c3io63m3kdl6sf5dejyha5qtqsm4gy7vkguqzc3cte
+
+   📋 Card diff:
+      endpoint: "https://rachax402-storacha-service.up.railway.app/upload" → "https://rachax402-storacha-service.up.railway.app/upload"
+   📤 New card uploaded: bafkreia6fnecdubrf7zc7sjzpff5lxrvvgcxt2b7whjs2wgc3wwxpl53gi
+   🔗 View: https://w3s.link/ipfs/bafkreia6fnecdubrf7zc7sjzpff5lxrvvgcxt2b7whjs2wgc3wwxpl53gi
+   📎 Preserving 4 capability tags: [Storacha, file-storage, ipfs, decentralized-storage]
+   📝 Submitting updateAgentCard for StorachaAgent...
+   📝 Transaction submitted: 0xb9c9a0c0489f7b591fab46558f571b279b520f8ad3139cfa121a0ebdd27db2a5
+      Waiting for confirmation...
+   ✅ Confirmed! Block: 38961589 | Gas: 160203
+   🔍 BaseScan: https://sepolia.basescan.org/tx/0xb9c9a0c0489f7b591fab46558f571b279b520f8ad3139cfa121a0ebdd27db2a5
+
+🎉 StorachaAgent card updated!
+   Old CID: bafkreicrjhvscge4c3io63m3kdl6sf5dejyha5qtqsm4gy7vkguqzc3cte
+   New CID: bafkreia6fnecdubrf7zc7sjzpff5lxrvvgcxt2b7whjs2wgc3wwxpl53gi
+   Tx:      0xb9c9a0c0489f7b591fab46558f571b279b520f8ad3139cfa121a0ebdd27db2a5
+
+
+════════════════════════════════════════════════════════════
+✅ All agent cards updated successfully!
+════════════════════════════════════════════════════════════
+
+Verification steps:
+  1. curl https://rachax402-analyzer-service.up.railway.app/health
+  2. curl https://rachax402-storacha-service.up.railway.app/health
+  3. Restart AgentA — discoverService() will now resolve Railway URLs
+  4. Verify registry:
+     https://sepolia.basescan.org/address/0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb
 
   */

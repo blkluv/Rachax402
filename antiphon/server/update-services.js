@@ -145,11 +145,12 @@ async function updateDataAnalyzer(storachaClient) {
     // 1. Fetch current card
     const { oldCID, card } = await fetchCurrentCard(DATA_ANALYZER_ADDRESS);
 
-    // 2. Patch endpoint — strip trailing slash from base URL before appending
+    // 2. Patch endpoint + pricing (server expects $0.01)
     const baseUrl = ANALYZER_URL.replace(/\/$/, '');
     const updatedCard = {
         ...card,
         endpoint: `${baseUrl}/analyze`,
+        pricing: { ...(card.pricing || {}), baseRate: 0.01, currency: 'USDC', network: 'base-sepolia' },
         updatedAt: new Date().toISOString(),
         metadata: {
             ...(card.metadata || {}),
@@ -160,6 +161,9 @@ async function updateDataAnalyzer(storachaClient) {
 
     console.log('\n   📋 Card diff:');
     console.log(`      endpoint: "${card.endpoint}" → "${updatedCard.endpoint}"`);
+    if ((card.pricing?.baseRate ?? -1) !== 0.01) {
+        console.log(`      pricing.baseRate: ${card.pricing?.baseRate ?? 'undefined'} → 0.01`);
+    }
 
     // 3. Upload updated card
     const newCID = await uploadUpdatedCard(storachaClient, updatedCard, 'agentcard-data-analyzer.json');
@@ -213,11 +217,12 @@ async function updateStorachaService(storachaClient) {
         };
     }
 
-    // 2. Patch endpoint + all sub-path references
+    // 2. Patch endpoint + pricing (server: $0.1 upload, $0.005 retrieve)
     const baseUrl = STORAGE_URL.replace(/\/$/, '');
     const updatedCard = {
         ...card,
         endpoint: `${baseUrl}/upload`,
+        pricing: { ...(card.pricing || {}), upload: 0.1, retrieve: 0.005, currency: 'USDC', network: 'base-sepolia' },
         updatedAt: new Date().toISOString(),
         metadata: {
             ...(card.metadata || {}),
@@ -230,6 +235,9 @@ async function updateStorachaService(storachaClient) {
 
     console.log('\n   📋 Card diff:');
     console.log(`      endpoint: "${card.endpoint}" → "${updatedCard.endpoint}"`);
+    if ((card.pricing?.upload ?? -1) !== 0.1 || (card.pricing?.retrieve ?? -1) !== 0.005) {
+        console.log(`      pricing: upload ${card.pricing?.upload ?? 'undefined'}, retrieve ${card.pricing?.retrieve ?? 'undefined'} → upload 0.1, retrieve 0.005`);
+    }
 
     // 3. Upload updated card
     const newCID = await uploadUpdatedCard(storachaClient, updatedCard, 'agentcard-storacha.json');
