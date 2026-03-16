@@ -45,11 +45,22 @@ Autonomous agent orchestrator for the Rachax402 decentralised agent marketplace 
 User uploads CSV
   → AgentA calls discoverService('analyze') → reads ERC-8004 on-chain
   → AgentA calls stageCsvForAnalysis → free upload to Storacha IPFS → inputCID
-  → AgentA calls X402 POST /analyze with inputCID
+  → AgentA calls analyzer railway service X402 POST /analyze with inputCID
       → Railway returns 402 → AgentA signs EIP-712 → facilitator verifies → paid
   → AgentA receives resultCID + stats
   → AgentA calls checkCanRate → postReputation (on-chain 5/5 with proofCID)
   → User sees results + IPFS link + reputation tx
+```
+
+```
+User uploads a file // Storacha storage service [upload and retrieve likewise]
+  → AgentA calls discoverService('store') → reads ERC-8004 on-chain // or 'upload'
+  → AgentA calls storachastorage
+  → AgentA calls storacha railway service X402 POST /upload
+      → Railway returns 402 → AgentA signs EIP-712 → facilitator verifies → paid
+  → AgentA receives resultCID + stats
+  → AgentA calls checkCanRate → postReputation (on-chain 5/5 with proofCID)
+  → User sees IPFS link + reputation tx
 ```
 
 ## Getting Started
@@ -176,23 +187,55 @@ const output = (part as any).output ?? (part as any).result;
 
 Previously `onFinish` only saved `text`, losing all tool-call and tool-result context between turns. Fixed to persist `response.messages` which includes the full assistant + tool-call + tool-result sequence. Claude now sees prior tool interactions in follow-up turns.
 
-### 2. Base64 Stripping Bug (route.ts)
+### 2. Stream Starvation / Browser Timeout (route.ts, storachaProvider.ts)
 
-A regex stripped base64 blobs from **all** messages including the current one. Claude then hallucinated a short base64 (decoded to ~6 garbage bytes) and stopped the pipeline. Fix: only strip base64 from **history** messages, never the current turn.
+**Symptom**: Frontend shows "Could not reach AgentA" after ~2.5 min despite the server still processing. Storacha staging logs appear *after* the stream reports done.
 
-### 3. AgentB Railway Crash (`agentB-server.js`, `storacha-server.js`)
+**Root cause (two compounding issues)**:
 
-`paymentMiddleware` with `syncFacilitatorOnStart = true` (default) eagerly called `httpServer.initialize()`. A transient network failure fetching `x402.org/facilitator` caused an unhandled promise rejection that crashed the process. Fixes applied:
+1. **LLM re-generating base64**: `stageCsvForAnalysis` and `paidStoreFile` accepted `base64Data` as a tool parameter. Claude had to output the entire file content token-by-token (~6000 tokens for a 13KB CSV). During this, the SDK emitted `tool-input-delta` events server-side but the stream handler never forwarded them to the client — zero bytes reached the browser for minutes, and the TCP connection died.
+
+2. **No heartbeat**: Even after tool input completes, actual tool execution (Storacha IPFS upload, x402 payment cycles) blocks the `fullStream` iterator. No data flows during execution, compounding the timeout.
+
+**Fixes**:
+
+- **Server-side file context** (`file-context.ts`): file bytes extracted in `route.ts` and stored server-side. Tools now accept only `filename` and read bytes from the store. Claude outputs a single short string instead of thousands of base64 tokens. Tool calls went from minutes of LLM output to milliseconds.
+- **4s heartbeat** (`h:\n`): interval in the stream handler keeps data flowing during tool execution. Frontend parser silently ignores `h:` lines.
+- **Emit `b:` on `tool-input-start`** instead of `tool-call`: client gets notified the instant Claude begins a tool call, not after all input is streamed.
+
+### 3. Base64 Stripping Bug (route.ts)
+
+A regex stripped base64 blobs from **all** messages including the current one. Claude then hallucinated a short base64 (decoded to ~6 garbage bytes) and stopped the pipeline. Fix: only strip base64 from **history** messages, never the current turn. (Now obsolete — base64 is no longer embedded in messages at all, see fix #2.)
+
+### 4. AgentB Railway — Startup Crash + x402 `initialize()` Failure
+
+**Phase 1 — Startup crash** (`agentB-server.js`, `storacha-server.js`):
+
+`paymentMiddleware` with `syncFacilitatorOnStart = true` (default) eagerly called `httpServer.initialize()`. A transient network failure fetching `x402.org/facilitator` caused an unhandled promise rejection that crashed the process. Fixes:
 
 1. `syncFacilitatorOnStart = false` — defer facilitator sync
 2. `/health` endpoint moved before `paymentMiddleware` — always accessible
 3. `warmFacilitator()` retry loop added in `start()` — graceful pre-check
 
-### 4. ERC-8004 Agent Card Update (`update-services.js`)
+**Phase 2 — 500 on first request** (same files):
+
+After Phase 1, the server started fine but every `/analyze` or `/upload` request returned 500:
+```
+Error: Facilitator does not support exact on eip155:84532.
+Make sure to call initialize() to fetch supported kinds from facilitators.
+```
+
+`warmFacilitator()` only pinged the facilitator URL to check network reachability — it never called `resourceServer.initialize()` which fetches the supported payment kinds (schemes + networks). The middleware with `syncFacilitatorOnStart = false` was expected to do lazy init on first request, but this version of `@x402/core` skips init entirely.
+
+Fix: replaced `warmFacilitator()` with `warmAndInitialize()` which does two things in sequence with retries:
+1. Ping facilitator URL (network reachability)
+2. Call `resourceServer.initialize()` (fetches payment kinds)
+
+### 5. ERC-8004 Agent Card Update (`update-services.js`)
 
 `updateAgentCard(newCID)` was only passing 1 arg but the contract requires 2: `(string newCID, string[] newCapabilityTags)`. Fixed to read existing capability tags via `getAgentCapabilities()` and pass them through. Also added an IPFS fallback for when the gateway times out fetching the old card.
 
-### 5. SCHEMA FIX (WethActionProvider_wrap_eth / "type: None" bug) in Onchain-agent
+### 6. SCHEMA FIX (WethActionProvider_wrap_eth / "type: None" bug) in Onchain-agent
 
 Root cause: `getVercelAITools()` returns plain objects with `parameters: JSONSchema`. Some AgentKit actions have schemas with `{ type: "None" }` which OpenAI rejects. AI SDK v5 reads `.parameters` (the JSON Schema) directly from the tool object to send to the API — it does NOT use `.inputSchema` for plain objects.
 
@@ -227,7 +270,8 @@ This guarantees the object the SDK iterates over has a valid .parameters, full s
 
 | File | Purpose |
 |------|---------|
-| `app/api/agent/route.ts` | API route — streaming, base64 handling, multi-turn memory |
+| `app/api/agent/route.ts` | API route — streaming, heartbeat, file context, multi-turn memory |
+| `app/api/agent/file-context.ts` | Server-side file store — avoids LLM re-generating base64 |
 | `app/api/agent/create-agent.ts` | Agent singleton — system prompt, tool merging, schema sanitization |
 | `app/api/agent/prepare-agentkit.ts` | AgentKit + CdpSmartWalletProvider setup |
 | `app/api/agent/providers/erc8004Provider.ts` | ERC-8004 discovery + reputation tools |

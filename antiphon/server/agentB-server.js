@@ -348,25 +348,41 @@ app.post('/analyze', async (req, res) => {
   }
 });
 
-async function warmFacilitator(url, maxAttempts = 5) {
+async function warmAndInitialize(maxAttempts = 5) {
+  const facilitatorUrl = USE_CDP ? null : FACILITATOR_URL;
+  if (!facilitatorUrl) return;
+
   for (let i = 1; i <= maxAttempts; i++) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(facilitatorUrl, { signal: AbortSignal.timeout(8000) });
       console.log(`✅ Facilitator reachable (${res.status})`);
-      return true;
+      break;
     } catch (err) {
-      console.warn(`⏳ Facilitator check ${i}/${maxAttempts} failed: ${err.message}`);
+      console.warn(`⏳ Facilitator ping ${i}/${maxAttempts}: ${err.message}`);
+      if (i === maxAttempts) {
+        console.warn('⚠️ Facilitator not reachable — will retry initialize on first request');
+        return;
+      }
+      await new Promise(r => setTimeout(r, 3000 * i));
+    }
+  }
+
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      await resourceServer.initialize();
+      console.log('✅ Resource server initialized (payment kinds loaded)');
+      return;
+    } catch (err) {
+      console.warn(`⏳ initialize() attempt ${i}/${maxAttempts}: ${err.message}`);
       if (i < maxAttempts) await new Promise(r => setTimeout(r, 3000 * i));
     }
   }
-  console.warn('⚠️ Facilitator not reachable after retries — first request will attempt init');
-  return false;
+  console.warn('⚠️ initialize() failed after retries — first request may fail');
 }
 
 async function start() {
   try {
-    const facilitatorUrl = USE_CDP ? null : FACILITATOR_URL;
-    if (facilitatorUrl) await warmFacilitator(facilitatorUrl);
+    await warmAndInitialize();
 
     app.listen(PORT, () => {
       console.log(`\n🤖 Agent B Provider running on http://localhost:${PORT}`);
