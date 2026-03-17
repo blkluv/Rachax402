@@ -194,9 +194,18 @@ app.get('/health', (req, res) => {
 
 // syncFacilitatorOnStart = false → defer facilitator validation to first request.
 // Prevents unhandled promise rejection crash when x402.org is transiently unreachable.
-app.use(paymentMiddleware(routes, resourceServer, undefined, undefined, false));
+// PROPAGATION DELAY WRAPPER (x402 Issue #1065): 1200ms delay for signed payment requests.
+const _rawPaymentMiddleware = paymentMiddleware(routes, resourceServer, undefined, undefined, false);
+app.use((req, res, next) => {
+  const hasPayment = !!(req.headers['x-payment'] || req.headers['payment']);
+  if (hasPayment) {
+    setTimeout(() => _rawPaymentMiddleware(req, res, next), 1200);
+  } else {
+    _rawPaymentMiddleware(req, res, next);
+  }
+});
 
-console.log('✅ Payment middleware registered with Bazaar discovery (lazy init)');
+console.log('✅ Payment middleware registered with Bazaar discovery (lazy init, 1200ms settle delay)');
 
 // Upload endpoint - protected by x402 (multer errors caught by error handler below)
 app.post('/upload', (req, res, next) => {

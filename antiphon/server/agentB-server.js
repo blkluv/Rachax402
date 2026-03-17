@@ -154,9 +154,22 @@ app.get('/health', (req, res) => {
 // the promise rejects unhandled and crashes the process before any request arrives.
 // Passing false stores initPromise = null, so validation runs inside the middleware's
 // own await on the first matching request — where errors are caught properly.
-app.use(paymentMiddleware(routes, resourceServer, undefined, undefined, false));
+// PROPAGATION DELAY WRAPPER (x402 Issue #1065):
+// CDP facilitator needs ~1-2s after the client signs the Permit2 message before
+// it can verify it. Wrapping the middleware so requests WITH a payment header
+// wait 1200ms before hitting the facilitator — avoiding "Payment was not settled"
+// race conditions on fast block confirmations.
+const _rawPaymentMiddleware = paymentMiddleware(routes, resourceServer, undefined, undefined, false);
+app.use((req, res, next) => {
+  const hasPayment = !!(req.headers['x-payment'] || req.headers['payment']);
+  if (hasPayment) {
+    setTimeout(() => _rawPaymentMiddleware(req, res, next), 1200);
+  } else {
+    _rawPaymentMiddleware(req, res, next);
+  }
+});
 
-console.log('✅ Payment middleware configured (Bazaar discovery enabled, lazy init)');
+console.log('✅ Payment middleware configured (Bazaar discovery enabled, lazy init, 1200ms settle delay)');
 
 async function analyzeCSV(csvContent) {
   return new Promise((resolve, reject) => {
