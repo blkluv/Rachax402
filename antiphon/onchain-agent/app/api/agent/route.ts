@@ -13,6 +13,7 @@
 import { NextResponse } from "next/server";
 import { createAgent } from "./create-agent";
 import { ModelMessage, streamText, stepCountIs } from "ai";
+import { setPendingFile, clearPendingFile } from "./file-context";
 
 // Next.js max route duration (seconds) — required for Vercel / long pipelines
 export const maxDuration = 300;
@@ -36,12 +37,16 @@ export async function POST(req: Request) {
         const arrayBuffer = await file.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString("base64");
         const isCSV = file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+        const mimeType = file.type || "application/octet-stream";
+
+        setPendingFile({ base64, filename: file.name, mimeType, sizeBytes: file.size });
 
         userMessage +=
           (userMessage ? "\n\n" : "") +
-          `[File attached: "${file.name}" (${(file.size / 1024).toFixed(1)} KB, ${file.type || "application/octet-stream"})]\n` +
-          `[base64_data:${base64}]\n\n` +
-          (isCSV ? "Please analyze this CSV file." : "Please store this file on Storacha.");
+          `[File attached: "${file.name}" (${(file.size / 1024).toFixed(1)} KB, ${mimeType})]` +
+          (isCSV
+            ? "\nPlease analyze this CSV file. Call stageCsvForAnalysis with the filename above."
+            : "\nPlease store this file on Storacha. Call paidStoreFile with the filename above.");
       }
     } else {
       const body = await req.json();
@@ -56,17 +61,7 @@ export async function POST(req: Request) {
 
     messages.push({ role: "user", content: userMessage });
 
-    // Strip base64 blobs from history ONLY — never from the current message.
-    // The current message's base64 must remain intact so Claude can extract it
-    // and pass it verbatim to stageCsvForAnalysis / paidStoreFile.
-    // Stripping the current message caused Claude to hallucinate a short base64,
-    // which decoded to ~6 garbage bytes instead of the real file content.
-    const currentIdx = messages.length - 1;
-    const historyForModel: ModelMessage[] = messages.map((m, idx) => {
-      if (idx === currentIdx) return m;
-      if (m.role !== "user" || typeof m.content !== "string") return m;
-      return { ...m, content: m.content.replace(/\[base64_data:[^\]]{200,}\]/g, "[base64_data:stripped]") };
-    });
+    const historyForModel: ModelMessage[] = [...messages];
 
     const result = streamText({
       model: agent.model,
@@ -84,8 +79,10 @@ export async function POST(req: Request) {
     });
 
     // Stream format:
-    //   0:"<text delta>"\n   → text chunk (parsed by useAgent.ts)
-    //   a:{toolName,result}\n → tool result (shown in live log panel)
+    //   0:"text"\n       → text chunk
+    //   b:{toolName}\n   → tool call initiated
+    //   a:{toolName,result}\n → tool result
+    //   h:\n              → heartbeat (keeps connection alive during tool execution)
     const encoder = new TextEncoder();
     let controllerClosed = false;
 
@@ -100,29 +97,44 @@ export async function POST(req: Request) {
           }
         };
 
+        const heartbeat = setInterval(() => enqueue("h:\n"), 4000);
+
         try {
+          const t0 = Date.now();
           for await (const part of (result as any).fullStream) {
             if (controllerClosed) break;
+            const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+
             if (part.type === "text-delta") {
               const td = (part as any).textDelta ?? (part as any).delta ?? (part as any).text;
               enqueue(`0:${JSON.stringify(td)}\n`);
+            } else if (part.type === "tool-input-start") {
+              const name = (part as any).toolName ?? "tool";
+              console.log(`[AgentA +${elapsed}s] → tool: ${name}`);
+              enqueue(`b:${JSON.stringify({ toolName: name })}\n`);
             } else if (part.type === "tool-call") {
-              console.log(`[AgentA] → tool: ${part.toolName}`);
-              enqueue(`b:${JSON.stringify({ toolName: part.toolName })}\n`);
+              const name = (part as any).toolName ?? "tool";
+              console.log(`[AgentA +${elapsed}s] ▶ tool-call: ${name}`);
             } else if (part.type === "tool-result") {
               const output = (part as any).output ?? (part as any).result;
-              const resultSnippet = typeof output === "string"
+              const name = (part as any).toolName ?? "tool";
+              const snippet = typeof output === "string"
                 ? output.slice(0, 120)
                 : JSON.stringify(output).slice(0, 120);
-              console.log(`[AgentA] ← ${part.toolName}: ${resultSnippet}`);
-              enqueue(`a:${JSON.stringify({ toolName: part.toolName, result: output })}\n`);
+              console.log(`[AgentA +${elapsed}s] ← ${name}: ${snippet}`);
+              enqueue(`a:${JSON.stringify({ toolName: name, result: output })}\n`);
             } else if (part.type === "error") {
-              console.error(`[AgentA] stream part error:`, part.error);
+              console.error(`[AgentA +${elapsed}s] error:`, (part as any).error);
+            } else if (!["tool-input-delta", "source"].includes(part.type)) {
+              console.log(`[AgentA +${elapsed}s] ${part.type}`);
             }
           }
+          console.log(`[AgentA] stream done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
         } catch (err) {
           console.error("[AgentA] stream error:", err);
         } finally {
+          clearInterval(heartbeat);
+          clearPendingFile();
           if (!controllerClosed) {
             controllerClosed = true;
             controller.close();

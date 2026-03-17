@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAgent } from "./hooks/useAgent";
+import { ToolLog } from "./components/ToolLog";
 import ReactMarkdown from "react-markdown";
 
 export default function Home() {
   const [input, setInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const { messages, sendMessage, isThinking, clearHistory } = useAgent();
+  const { messages, toolEvents, sendMessage, isThinking, clearHistory } = useAgent();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,57 +117,27 @@ export default function Home() {
                 }`}
               >
                 {msg.sender === "agent" ? (
-                  <>
-                    <div className="prose prose-sm prose-invert max-w-none prose-p:text-[#e2e8f0] prose-li:text-[#cbd5e1]">
-                      <ReactMarkdown
-                        components={{
-                          a: (props) => (
-                            <a
-                              {...props}
-                              className="text-[#00d4aa] underline"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            />
-                          ),
-                          code: (props) => (
-                            <code className="bg-white/10 rounded px-1.5 py-0.5 text-xs font-mono text-[#a78bfa]">
-                              {props.children}
-                            </code>
-                          ),
-                        }}
-                      >
-                        {msg.text}
-                      </ReactMarkdown>
-                    </div>
-                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                      <div className="mt-2 rounded-xl bg-[#0d1117]/80 border border-white/10 overflow-hidden">
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-white/5">
-                          <div className="w-2 h-2 rounded-full bg-red-400/60" />
-                          <div className="w-2 h-2 rounded-full bg-amber-400/60" />
-                          <div className="w-2 h-2 rounded-full bg-[#10b981]/60" />
-                          <span className="ml-1.5 text-[10px] font-mono text-white/30">
-                            agent-a-coordinator
-                          </span>
-                        </div>
-                        <div className="px-3 py-2 space-y-1">
-                          {msg.toolCalls.map((t, j) => (
-                            <div
-                              key={j}
-                              className="flex items-start gap-2 text-[10px] font-mono"
-                            >
-                              <span className="text-white/20 shrink-0">→</span>
-                              <span className="text-[#8b5cf6] shrink-0">
-                                {t.tool}
-                              </span>
-                              <span className="text-[#00d4aa]/90 truncate">
-                                {t.result}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <div className="prose prose-sm prose-invert max-w-none prose-p:text-[#e2e8f0] prose-li:text-[#cbd5e1]">
+                    <ReactMarkdown
+                      components={{
+                        a: (props) => (
+                          <a
+                            {...props}
+                            className="text-[#00d4aa] underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
+                        ),
+                        code: (props) => (
+                          <code className="bg-white/10 rounded px-1.5 py-0.5 text-xs font-mono text-[#a78bfa]">
+                            {props.children}
+                          </code>
+                        ),
+                      }}
+                    >
+                      {msg.text}
+                    </ReactMarkdown>
+                  </div>
                 ) : (
                   <p className="text-sm">{msg.text}</p>
                 )}
@@ -276,6 +247,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+      <ToolLog events={toolEvents} />
     </div>
   );
 }

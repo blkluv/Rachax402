@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.67",
-    "@ai-sdk/openai": "^2.0.95",
     "@coinbase/agentkit": "latest",
     "@coinbase/agentkit-langchain": "latest",
     "@coinbase/agentkit-vercel-ai-sdk": "latest",

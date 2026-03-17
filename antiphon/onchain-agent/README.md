@@ -1,6 +1,8 @@
 # Rachax402 — Onchain Agent (AgentA)
 
-Autonomous agent orchestrator for the Rachax402 decentralised agent marketplace on Base Sepolia. Built with [Coinbase AgentKit](https://github.com/coinbase/agentkit), Anthropic Claude, Vercel AI SDK v5, ERC-8004 identity/reputation, x402 payments, and Storacha IPFS storage.
+![Storacha](https://img.shields.io/badge/Storacha-red?logo=Storacha) ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js) ![AgentKit](https://img.shields.io/badge/Coinbase-AgentKit-0052FF?logo=coinbase) ![Base](https://img.shields.io/badge/Base-Sepolia-0052FF) ![x402](https://img.shields.io/badge/x402-payments-10b981)
+
+Autonomous agent orchestrator for the Rachax402 decentralised agent marketplace on Base Sepolia. Claude + AgentKit + ERC-8004 + x402 + Storacha.
 
 ## Architecture
 
@@ -39,29 +41,28 @@ Autonomous agent orchestrator for the Rachax402 decentralised agent marketplace 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Agentic Flow
+## Agentic Services Workflow
 
+**CSV analyze**
 ```
-User uploads CSV
-  → AgentA calls discoverService('analyze') → reads ERC-8004 on-chain
-  → AgentA calls stageCsvForAnalysis → free upload to Storacha IPFS → inputCID
-  → AgentA calls analyzer railway service X402 POST /analyze with inputCID
-      → Railway returns 402 → AgentA signs EIP-712 → facilitator verifies → paid
-  → AgentA receives resultCID + stats
-  → AgentA calls checkCanRate → postReputation (on-chain 5/5 with proofCID)
-  → User sees results + IPFS link + reputation tx
+User uploads CSV → discoverService('analyze') → stageCsvForAnalysis(filename) 
+→ X402 POST /analyze → 402 → sign EIP-712 → paid → resultCID + stats 
+→ checkCanRate → postReputation
 ```
 
+**File store**
 ```
-User uploads a file // Storacha storage service [upload and retrieve likewise]
-  → AgentA calls discoverService('store') → reads ERC-8004 on-chain // or 'upload'
-  → AgentA calls storachastorage
-  → AgentA calls storacha railway service X402 POST /upload
-      → Railway returns 402 → AgentA signs EIP-712 → facilitator verifies → paid
-  → AgentA receives resultCID + stats
-  → AgentA calls checkCanRate → postReputation (on-chain 5/5 with proofCID)
-  → User sees IPFS link + reputation tx
+User uploads file → discoverService('store') → paidStoreFile(filename, endpoint) 
+→ X402 POST /upload → paid → CID
 ```
+
+**File retrieve**
+```
+User types CID → discoverService('retrieve') → paidRetrieveFile(cid, endpoint) 
+→ X402 GET /retrieve → paid → file
+```
+
+File bytes are stored server-side (`file-context.ts`). Tools receive only `filename` — no base64 in LLM output.
 
 ## Getting Started
 
@@ -84,7 +85,7 @@ pnpm dev               # http://localhost:3000
 
 ## MCP Server (`../mcp-server/`)
 
-Standalone MCP server exposing the same ERC-8004 + x402 + Storacha capabilities to any LLM host via stdio transport. Not coupled to the Next.js app.
+Standalone MCP server exposing the same ERC-8004 + x402 + Storacha capabilities to any LLM host via stdio transport.
 
 ### Tools Exposed
 
@@ -161,6 +162,41 @@ McpServer (rachax402, 8 tools)
   └─ post_reputation ───► ERC-8004 ReputationRegistry (on-chain write)
 ```
 
+### Why x402 uses Permit2 for our agentic system
+
+-  Our Agentic x402 Payment flow is:
+
+```
+AgentA (smart wallet)                  agentB-server          CDP Facilitator
+      │                                      │                       │
+      │  POST /analyze (no payment)          │                       │
+      │─────────────────────────────────────▶│                       │
+      │◀──── 402 + payment requirements ─────│                       │
+      │                                      │                       │
+      │  signs Permit2 message OFF-CHAIN     │                       │
+      │  (costs 0 gas, instant)              │                       │
+      │                                      │                       │
+      │  POST /analyze + X-Payment: <sig>    │                       │
+      │─────────────────────────────────────▶│                       │
+      │                                      │──── POST /verify ────▶│
+      │                                      │◀─── valid ────────────│
+      │                                      │                       │
+      │                                      │──── POST /settle ────▶│
+      │                                      │     CDP calls:         │
+      │                                      │     Permit2.permitWitness│
+      │                                      │     TransferFrom()    │
+      │                                      │     moves 0.01 USDC   │
+      │                                      │     0xf2e2 → 0xEAB4   │
+      │◀──── 200 + analysis result ──────────│                       │
+
+```
+
+The signing step is free and instant (no gas). The only on-chain transaction is the actual USDC transfer, which the facilitator submits. This is perfect for agents because:
+
+AgentA can pay for dozens of services without waiting for or paying for multiple approval transactions
+The CDP facilitator handles all the gas for the actual transfer
+Each payment is cryptographically authorised by the smart wallet's signature
+
 ---
 
 ## Troubleshooting & Fixes
@@ -231,11 +267,31 @@ Fix: replaced `warmFacilitator()` with `warmAndInitialize()` which does two thin
 1. Ping facilitator URL (network reachability)
 2. Call `resourceServer.initialize()` (fetches payment kinds)
 
-### 5. ERC-8004 Agent Card Update (`update-services.js`)
+### 5. x402 Payment Never Settling — Version Mismatch (`server/package.json`)
+
+**Symptom**: AgentA's `X402ActionProvider_make_http_request_with_x402` consistently returned `"Request failed with status 402. Payment was not settled."` even though the service was up and the wallet had USDC. The `retry_http_request_with_x402` fallback also failed with `"Cannot read properties of undefined (reading 'network')"`.
+
+**Root cause**: The client (AgentKit in onchain-agent) ships `@x402/core` **v2.5.0** while the server (Railway services) had `@x402/*` **v2.2.0**. The v2.5.0 client sends the signed payment in the `PAYMENT-SIGNATURE` header using a v2 payload structure. The v2.2.0 server's `extractPayment()` attempts to decode it via `decodePaymentSignatureHeader()`, but the payload format changed between versions — decode throws, the catch block silently returns `null`, and the server treats the request as "no payment attached" → returns 402 again.
+
+```
+Client (v2.5.0)                        Server (v2.2.0)
+─────────────────                      ─────────────────
+POST /analyze + PAYMENT-SIGNATURE ──►  extractPayment()
+                                         ├─ decodePaymentSignatureHeader(header)
+                                         ├─ THROWS (incompatible format)
+                                         ├─ catch → console.warn → return null
+                                         └─ "no payment" → respond 402
+```
+
+The `retry_http_request_with_x402` secondary error was Claude passing `{ original_response: {...} }` instead of the expected flat schema `{ url, method, body, selectedPaymentOption }` — a schema interpretation issue, not a code bug.
+
+**Fix**: Updated `server/package.json` `@x402/*` from `^2.2.0` → `^2.5.0` (resolved to 2.7.0). Client v2.5.0 ↔ server v2.7.0 are fully compatible. After redeployment, the payment flow settles correctly.
+
+### 6. ERC-8004 Agent Card Update (`update-services.js`)
 
 `updateAgentCard(newCID)` was only passing 1 arg but the contract requires 2: `(string newCID, string[] newCapabilityTags)`. Fixed to read existing capability tags via `getAgentCapabilities()` and pass them through. Also added an IPFS fallback for when the gateway times out fetching the old card.
 
-### 6. SCHEMA FIX (WethActionProvider_wrap_eth / "type: None" bug) in Onchain-agent
+### 7. SCHEMA FIX (WethActionProvider_wrap_eth / "type: None" bug) in Onchain-agent
 
 Root cause: `getVercelAITools()` returns plain objects with `parameters: JSONSchema`. Some AgentKit actions have schemas with `{ type: "None" }` which OpenAI rejects. AI SDK v5 reads `.parameters` (the JSON Schema) directly from the tool object to send to the API — it does NOT use `.inputSchema` for plain objects.
 
@@ -255,6 +311,53 @@ This guarantees the object the SDK iterates over has a valid .parameters, full s
 
 > Additionally: removed wethActionProvider + pythActionProvider from prepare-agentkit.ts (not used in Rachax402; both produce broken schemas).
 
+### 8. Price $0.0001 vs $0.01 (update-services.js)
+
+**Symptom**: discoverService returns "Price: $0.0001 USDC" but the server expects $0.01.
+
+**Root cause**: The agent card on IPFS (source of truth for discovery) had `pricing.baseRate: 0.0001`. update-services.js only patched `endpoint`, not pricing.
+
+**Fix**: update-services.js now patches `pricing.baseRate: 0.01` when updating the DataAnalyzer card. Run `node update-services.js --service=analyzer` and redeploy.
+
+### 9. retry_http_request_with_x402 "Cannot read properties of undefined (reading 'network')"
+
+**Symptom**: When make_http_request_with_x402 fails with 402, the retry tool crashes with `Cannot read properties of undefined (reading 'network')`.
+
+**Root cause**: The retry schema expects `selectedPaymentOption` (one object from acceptablePaymentOptions). Claude was passing `previousResponse` instead. `args.selectedPaymentOption` was undefined → `.network` throws.
+
+**Fix**: System prompt updated to instruct Claude: for retry, pass `url`, `method`, `body`, and `selectedPaymentOption` — pick ONE object from `acceptablePaymentOptions` (has scheme, network, asset, maxAmountRequired). Do NOT pass previousResponse.
+
+### 10. "Payment was not settled" — Both facilitators support exact on eip155:84532 (Base Sepolia):
+
+**Symptom**: X402ActionProvider returns `"Payment was not settled"` despite sufficient USDC. Service returns 402 again after client sends PAYMENT-SIGNATURE.
+
+Facilitator	/supported	exact on eip155:84532
+xpay	https://facilitator.xpay.sh/supported	Yes (v2)
+x402.org	https://x402.org/facilitator/supported	Yes (v2)
+
+- xpay kinds:
+
+```
+{"kinds":[
+  {"x402Version":2,"scheme":"exact","network":"eip155:8453"},
+  {"x402Version":2,"scheme":"exact","network":"eip155:84532"},
+  {"x402Version":1,"scheme":"exact","network":"base"},
+  {"x402Version":1,"scheme":"exact","network":"base-sepolia"}
+]}
+```
+
+- x402.org kinds (relevant part):
+
+```
+{"kinds":[
+  {"x402Version":2,"scheme":"exact","network":"eip155:84532"},
+  ...
+  {"x402Version":1,"scheme":"exact","network":"base-sepolia"},
+  ...
+]}
+```
+
+Both support exact on eip155:84532 in v2. Either facilitator should work for Base Sepolia; xpay is still a good default because it sponsors gas. [see here for details](./x402-payment-troubleshooting.md)
 ---
 
 ## On-Chain Contracts

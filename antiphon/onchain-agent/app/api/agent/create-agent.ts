@@ -21,6 +21,7 @@ import { getStorachaTools } from "./providers/storachaProvider";
  * so tools without it produce `input_schema.type: Field required` from the Anthropic API.
  *
  * We also fix any broken `type` field (e.g. "None" or "undefined") to "object".
+ * For ERC20ActionProvider_get_balance: remove `address` from schema so the default (Smart Wallet) is used.
  */
 function sanitizeAgentKitTools(
   rawTools: Record<string, unknown>
@@ -40,12 +41,19 @@ function sanitizeAgentKitTools(
     const paramType = params && typeof params === "object" ? params.type : undefined;
     const needsFix = typeof paramType !== "string" || paramType !== "object";
 
+    let base = typeof params === "object" && params !== null ? { ...params } : {};
     if (needsFix) {
       console.log(`[AgentKit schema fix] ${name}: replaced parameters.type="${String(paramType)}" → "object"`);
     }
 
-    // Preserve existing properties/required/etc but force type="object"
-    const base = typeof params === "object" && params !== null ? params : {};
+    if (name === "ERC20ActionProvider_get_balance") {
+      const props = (base.properties as Record<string, unknown>) || {};
+      delete props.address;
+      base = { ...base, properties: props };
+      const required = Array.isArray(base.required) ? base.required.filter((r: unknown) => r !== "address") : base.required;
+      if (required) base = { ...base, required };
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sanitized[name] = { ...t, inputSchema: jsonSchema({ ...base, type: "object" } as any) };
   }
@@ -89,34 +97,46 @@ ${canUseFaucet ? "You can request testnet funds from the faucet at any time." : 
 | AgentB DataAnalyzer | 0xEAB418143643557C74479d38E773A64E35B5f6c9 — capability: csv-analysis — price: $0.01 USDC/task |
 | AgentB StorachaStorage | 0x9D48b65Bb45f144CBC5662Fd3Fd011659371D0f8 — capability: file-storage — upload: $0.1 USDC / retrieve: $0.005 USDC |
 
-x402 protocol: AgentB returns HTTP 402 → you sign EIP-712 via your CDP Smart Wallet → x402.org/facilitator verifies → request retried with payment header → response delivered.
+x402 protocol: AgentB returns HTTP 402 → you sign Permit2 via your CDP Smart Wallet (EIP-1271) → facilitator verifies → request retried with payment header → response delivered.
+
+## AgentA Wallet (x402 payments)
+- CDP Smart Wallet (holds USDC for payments): 0x2E84f9C413bFcEe925128734a7c85bf5bE595a0a
+- All x402 payments and balance checks use this address. Permit2 supports smart wallets via EIP-1271.
+- When calling ERC20ActionProvider_get_balance, omit the address parameter so the Smart Wallet is used by default.
+- ERC20ActionProvider_get_balance returns whole USDC units ( not micro-USDC). Never interpret it as micro-USDC.
 
 ## Tool Reference
 
 | Tool | Purpose |
 |---|---|
 | \`discoverService\` | Query ERC-8004 on-chain for a capability → returns endpoint, price, payTo, reputation |
-| \`stageCsvForAnalysis\` | FREE upload of CSV to Storacha via AgentA's own Storacha credentials → returns inputCID |
-| \`paidStoreFile\` | Paid binary file upload to AgentB StorachaStorage ($0.1 USDC) — handles multipart/form-data + x402 |
+| \`stageCsvForAnalysis\` | FREE upload of attached CSV to Storacha — pass filename only, file bytes are pre-loaded server-side → returns inputCID |
+| \`paidStoreFile\` | Paid file upload to AgentB StorachaStorage ($0.1 USDC) — pass filename + endpoint, file bytes are pre-loaded server-side |
 | \`paidRetrieveFile\` | Paid file retrieval by CID from AgentB StorachaStorage ($0.005 USDC) — handles binary response + x402 |
-| \`X402ActionProvider_make_http_request_with_x402\` | Make an HTTP request that auto-handles 402 payment flow with CDP Smart Wallet |
-| \`WalletActionProvider_get_wallet_details\` | Get AgentA's CDP Smart Wallet address (required as raterAddress for checkCanRate) |
+| \`X402ActionProvider_make_http_request\` | Make HTTP request; if 402, returns payment options for retry |
+| \`X402ActionProvider_retry_http_request_with_x402\` | Retry with payment after 402 — pass url, method, body, selectedPaymentOption |
+| \`X402ActionProvider_make_http_request_with_x402\` | Combined flow (use only if two-step fails) |
+| \`WalletActionProvider_get_wallet_details\` | Get AgentA's Smart Wallet address (required as raterAddress for checkCanRate) |
 | \`checkCanRate\` | Check ERC-8004 rate limit before posting reputation — always call before postReputation |
 | \`postReputation\` | Post on-chain 5/5 rating to ReputationRegistry after successful task |
 | \`CdpApiActionProvider_request_faucet_funds\` | Request testnet USDC/ETH from faucet (base-sepolia only) |
 
 ## ⚠️ Critical Tool Routing Rules
 
-NEVER use X402ActionProvider_make_http_request_with_x402 for file upload or retrieval:
+NEVER use X402ActionProvider for file upload or retrieval:
 - /upload requires multipart/form-data with binary file bytes → use paidStoreFile
 - /retrieve returns raw binary bytes → use paidRetrieveFile
-Only use X402ActionProvider_make_http_request_with_x402 for /analyze (JSON body: { inputCID, requirements }).
+
+For /analyze, PREFER the two-step flow (higher success rate):
+1. X402ActionProvider_make_http_request (url, method: POST, body: { inputCID, requirements })
+2. If 402: X402ActionProvider_retry_http_request_with_x402 with same url, method, body, and selectedPaymentOption from acceptablePaymentOptions
+Only use make_http_request_with_x402 if the two-step flow fails with "Payment was not settled".
 
 ## Decision Guidelines
 
 For any paid operation, ALWAYS call discoverService first to get the endpoint, price, and payTo address from the on-chain registry. Never hardcode endpoints.
 
-- CSV analysis: discoverService('analyze') → stageCsvForAnalysis (free) → X402ActionProvider_make_http_request_with_x402 (JSON POST to /analyze) → reputation
+- CSV analysis: discoverService('analyze') → stageCsvForAnalysis (free) → make_http_request to /analyze → if 402, retry_http_request_with_x402 → reputation
 - File upload: discoverService('store') → paidStoreFile (binary multipart + x402) → reputation
 - File retrieval: discoverService('retrieve') → paidRetrieveFile (binary GET + x402) → reputation
 
@@ -127,11 +147,13 @@ After every successful paid task, call WalletActionProvider_get_wallet_details, 
 - Wallet balance too low for payment → request faucet funds (testnet only), then retry.
 - Rate limit on reputation → skip reputation, inform user, task still succeeded.
 - IPFS gateway timeout → provide the CID directly so the user can retrieve manually.
+- If make_http_request_with_x402 returns 402 "Payment was not settled", retry via two-step: make_http_request (get 402 + acceptablePaymentOptions), then retry_http_request_with_x402 with url, method, body, and selectedPaymentOption (one object from acceptablePaymentOptions). The delay between steps can help settlement succeed.
 
 ## File Handling
-When a user message contains \`[base64_data:<base64>]\`, extract the base64 string and filename from the annotation.
-- CSV files → stageCsvForAnalysis → X402ActionProvider for /analyze
-- All other files → paidStoreFile (handles x402 + binary FormData upload to /upload)
+When a user message contains \`[File attached: "filename.ext" (size, type)]\`, the raw file bytes are already pre-loaded server-side.
+You do NOT need to pass base64 data — just pass the filename to the tool.
+- CSV files → stageCsvForAnalysis(filename) → X402ActionProvider for /analyze
+- All other files → paidStoreFile(filename, endpoint) → paid IPFS storage
 
 ## Security Guardrails
 - NEVER sign transactions or approve spending to addresses outside the known ERC-8004 registry (0x1352abA5..., 0x3FdD3001...) or discovered service wallets.
@@ -166,7 +188,7 @@ ${isTestnet
 
   const agentKitTools = sanitizeAgentKitTools(rawAgentKitTools);
   const erc8004Tools = getERC8004Tools();
-  const storachaTools = getStorachaTools();
+  const storachaTools = getStorachaTools(walletProvider);
 
   const tools = {
     ...agentKitTools,

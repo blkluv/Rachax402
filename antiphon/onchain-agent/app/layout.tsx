@@ -16,6 +16,9 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Rachax402 · Agent",
+  icons: {
+    icon: "/Rachax402-logo.png",
+  },
   description:
     "Decentralized agent-to-agent service discovery and payment-gated execution: ERC-8004, x402, Storacha.",
 };
@@ -39,28 +42,37 @@ export default function RootLayout({
               <span className="text-xl font-semibold text-gradient-rachax">
                 Rachax402
               </span>
-              {/* <span className="text-[10px] sm:text-xs font-mono text-[#94a3b8] tracking-wider hidden sm:inline">
-                Storacha · ERC-8004 · x402
-              </span> */}
             </a>
-            <nav className="flex items-center gap-3 sm:gap-5 text-xs font-medium">
-              <a
-                href="https://github.com/polus-dev/erc-8004"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#94a3b8] hover:text-[#8b5cf6] transition"
-              >
-                ERC-8004
-              </a>
-              <a
-                href="https://github.com/coinbase/x402"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#94a3b8] hover:text-[#10b981] transition"
-              >
-                x402
-              </a>
-            </nav>
+
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-purple-500 text-xs text-muted-foreground">
+                <a
+                  href="https://github.com/polus-dev/erc-8004"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                ><span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  ERC-8004
+                </a>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-green-500 text-xs text-muted-foreground">
+                <a
+                  href="https://github.com/coinbase/x402"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                ><span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  x402
+                </a>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-red-500 text-xs text-muted-foreground">
+                <a
+                  href="https://github.com/storacha/storacha"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                ><span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  Storacha
+                </a>
+              </div>
+            </div>
           </div>
         </header>
 
