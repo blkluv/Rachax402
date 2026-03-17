@@ -33,12 +33,13 @@ app.use(express.json());
 
 // Configuration
 const RECIPIENT_ADDRESS = process.env.RECIPIENT_ADDRESS;
-const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://x402.org/facilitator';
-const USE_CDP = !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET);
-const NETWORK = process.env.X402_NETWORK || (USE_CDP ? 'eip155:8453' : 'eip155:84532');
+const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.xpay.sh';
+const NETWORK = process.env.X402_NETWORK || 'eip155:84532';
 
-// CDP facilitator for production, x402.org for testnet
-const facilitatorClient = USE_CDP
+// CDP facilitator supports Base mainnet + Base Sepolia, and Permit2 (smart wallet compatible). xpay is EIP-3009 only.
+const useCdp = !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET);
+
+const facilitatorClient = useCdp
   ? new HTTPFacilitatorClient(cdpFacilitator)
   : new HTTPFacilitatorClient({ url: FACILITATOR_URL });
 
@@ -56,6 +57,7 @@ const routes = {
         price: '$0.1',
         network: NETWORK,
         payTo: RECIPIENT_ADDRESS,
+        extra: { assetTransferMethod: 'permit2', name: 'USDC', version: '2' },
       },
     ],
     description: 'Upload files to decentralized IPFS storage via Storacha. Returns CID and IPFS gateway URL.',
@@ -116,6 +118,7 @@ const routes = {
         price: '$0.005',
         network: NETWORK,
         payTo: RECIPIENT_ADDRESS,
+        extra: { assetTransferMethod: 'permit2', name: 'USDC', version: '2' },
       },
     ],
     description: 'Retrieve files from IPFS storage using CID. Returns file data and metadata.',
@@ -170,7 +173,7 @@ app.get('/health', (req, res) => {
     service: 'Storacha x402 Agent',
     recipient: RECIPIENT_ADDRESS,
     network: NETWORK,
-    facilitator: USE_CDP ? 'CDP (production)' : FACILITATOR_URL,
+    facilitator: useCdp ? 'CDP (production)' : FACILITATOR_URL,
     bazaarEnabled: true,
     endpoints: {
       upload: {
@@ -268,21 +271,21 @@ app.get('/retrieve', async (req, res) => {
 });
 
 async function warmAndInitialize(maxAttempts = 5) {
-  const facilitatorUrl = USE_CDP ? null : FACILITATOR_URL;
-  if (!facilitatorUrl) return;
-
-  for (let i = 1; i <= maxAttempts; i++) {
-    try {
-      const res = await fetch(facilitatorUrl, { signal: AbortSignal.timeout(8000) });
-      console.log(`✅ Facilitator reachable (${res.status})`);
-      break;
-    } catch (err) {
-      console.warn(`⏳ Facilitator ping ${i}/${maxAttempts}: ${err.message}`);
-      if (i === maxAttempts) {
-        console.warn('⚠️ Facilitator not reachable — will retry initialize on first request');
-        return;
+  const facilitatorUrl = useCdp ? null : FACILITATOR_URL;
+  if (facilitatorUrl) {
+    for (let i = 1; i <= maxAttempts; i++) {
+      try {
+        const res = await fetch(`${facilitatorUrl}/health`, { signal: AbortSignal.timeout(8000) });
+        console.log(`✅ Facilitator reachable (${res.status})`);
+        break;
+      } catch (err) {
+        console.warn(`⏳ Facilitator ping ${i}/${maxAttempts}: ${err.message}`);
+        if (i === maxAttempts) {
+          console.warn('⚠️ Facilitator not reachable — will retry initialize on first request');
+          break;
+        }
+        await new Promise(r => setTimeout(r, 3000 * i));
       }
-      await new Promise(r => setTimeout(r, 3000 * i));
     }
   }
 
@@ -307,7 +310,7 @@ async function start() {
       console.log(`🚀 Storacha x402 Agent server running on http://localhost:${PORT}`);
       console.log(`💰 Recipient: ${RECIPIENT_ADDRESS}`);
       console.log(`🌐 Network: ${NETWORK}`);
-      console.log(`📡 Facilitator: ${USE_CDP ? 'CDP (production)' : FACILITATOR_URL}`);
+      console.log(`📡 Facilitator: ${useCdp ? 'CDP (production)' : FACILITATOR_URL}`);
       console.log(`🔍 Bazaar Discovery: ENABLED`);
       console.log(`\n📋 Available endpoints:`);
       console.log(`   POST /upload  - $0.1 per upload`);

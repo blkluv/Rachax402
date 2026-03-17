@@ -36,17 +36,18 @@ app.use(express.json());
 
 // Configuration
 const RECIPIENT_ADDRESS = process.env.PROVIDER_WALLET_ADDRESS;
-const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://x402.org/facilitator';
-const USE_CDP = !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET);
-const NETWORK = process.env.X402_NETWORK || (USE_CDP ? 'eip155:8453' : 'eip155:84532');
+const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.xpay.sh';
+const NETWORK = process.env.X402_NETWORK || 'eip155:84532';
+
+// CDP facilitator supports Base mainnet + Base Sepolia, and Permit2 (smart wallet compatible). xpay is EIP-3009 only.
+const useCdp = !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET);
 
 console.log('🔧 Initializing Agent B Server...');
 console.log(`   Recipient: ${RECIPIENT_ADDRESS}`);
-console.log(`   Facilitator: ${USE_CDP ? 'CDP (production)' : FACILITATOR_URL}`);
+console.log(`   Facilitator: ${useCdp ? 'CDP (production)' : FACILITATOR_URL}`);
 console.log(`   Network: ${NETWORK}`);
 
-// CDP facilitator for production, x402.org for testnet
-const facilitatorClient = USE_CDP
+const facilitatorClient = useCdp
   ? new HTTPFacilitatorClient(cdpFacilitator)
   : new HTTPFacilitatorClient({ url: FACILITATOR_URL });
 
@@ -61,6 +62,7 @@ const routes = {
         price: '$0.01',
         network: NETWORK,
         payTo: RECIPIENT_ADDRESS,
+        extra: { assetTransferMethod: 'permit2', name: 'USDC', version: '2' },
       },
     ],
     description: 'Analyze CSV dataset with statistical computation. Accepts an IPFS CID pointing to CSV data, returns resultCID with analysis.',
@@ -132,7 +134,7 @@ app.get('/health', (req, res) => {
     service: 'Agent B Provider (DataAnalyzer)',
     recipient: RECIPIENT_ADDRESS,
     network: NETWORK,
-    facilitator: USE_CDP ? 'CDP (production)' : FACILITATOR_URL,
+    facilitator: useCdp ? 'CDP (production)' : FACILITATOR_URL,
     bazaarEnabled: true,
     storachaReady: true,
     endpoints: {
@@ -349,21 +351,21 @@ app.post('/analyze', async (req, res) => {
 });
 
 async function warmAndInitialize(maxAttempts = 5) {
-  const facilitatorUrl = USE_CDP ? null : FACILITATOR_URL;
-  if (!facilitatorUrl) return;
-
-  for (let i = 1; i <= maxAttempts; i++) {
-    try {
-      const res = await fetch(facilitatorUrl, { signal: AbortSignal.timeout(8000) });
-      console.log(`✅ Facilitator reachable (${res.status})`);
-      break;
-    } catch (err) {
-      console.warn(`⏳ Facilitator ping ${i}/${maxAttempts}: ${err.message}`);
-      if (i === maxAttempts) {
-        console.warn('⚠️ Facilitator not reachable — will retry initialize on first request');
-        return;
+  const facilitatorUrl = useCdp ? null : FACILITATOR_URL;
+  if (facilitatorUrl) {
+    for (let i = 1; i <= maxAttempts; i++) {
+      try {
+        const res = await fetch(`${facilitatorUrl}/health`, { signal: AbortSignal.timeout(8000) });
+        console.log(`✅ Facilitator reachable (${res.status})`);
+        break;
+      } catch (err) {
+        console.warn(`⏳ Facilitator ping ${i}/${maxAttempts}: ${err.message}`);
+        if (i === maxAttempts) {
+          console.warn('⚠️ Facilitator not reachable — will retry initialize on first request');
+          break;
+        }
+        await new Promise(r => setTimeout(r, 3000 * i));
       }
-      await new Promise(r => setTimeout(r, 3000 * i));
     }
   }
 
@@ -388,7 +390,7 @@ async function start() {
       console.log(`\n🤖 Agent B Provider running on http://localhost:${PORT}`);
       console.log(`💰 Recipient: ${RECIPIENT_ADDRESS}`);
       console.log(`🌐 Network: ${NETWORK}`);
-      console.log(`📡 Facilitator: ${USE_CDP ? 'CDP (production)' : FACILITATOR_URL}`);
+      console.log(`📡 Facilitator: ${useCdp ? 'CDP (production)' : FACILITATOR_URL}`);
       console.log(`🔍 Bazaar Discovery: ENABLED`);
       console.log(`\n📋 Protected endpoints:`);
       console.log(`   POST /analyze - $0.01 per analysis`);
