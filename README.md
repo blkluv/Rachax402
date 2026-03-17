@@ -1,286 +1,165 @@
-# Rachax402: ![Agent Economies](https://img.shields.io/badge/Fueling--Open--Ended%20Agent%20Economies-neon)
+<div align="center">
 
-[![Storacha](https://img.shields.io/badge/Storacha-IPFS%20%2B%20Filecoin-red)](https://docs.storacha.network/)
-[![ElizaOS](https://img.shields.io/badge/ElizaOS-1.7+-blue?logo=eliza)](https://github.com/elizaos/eliza)
-[![x402](https://img.shields.io/badge/x402-Payment%20Protocol-green)](https://www.x402.org/)
-[![ERC-8004](https://img.shields.io/badge/ERC--8004-Agent%20Identity-purple)](https://eips.ethereum.org/EIPS/eip-8004)
-[![Base](https://img.shields.io/badge/Base-Sepolia%20%7C%20Mainnet-0052FF?logo=base)](https://docs.base.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-<!-- [![License](https://img.shields.io/badge/License-ISC-yellow)](./LICENSE) -->
+<!-- ═══════════════════ BANNER IMAGE ════════════════════════════ -->
+<img src="https://github.com/user-attachments/assets/a235e9ad-63d8-4908-aa4a-049dd3b5d529" alt="Rachax402 Banner" width="100%" />
 
-**(A decentralized Agent co-ordination system integrating ERC-8004 (on-chain identity/reputation), x402 (payment protocol), and Storacha (decentralized storage) for agent-to-agent service discovery and payment-gated task execution).**
+<br />
 
-> **Rachax402** = **Storacha** (decentralized storage) + **x402** (payment protocol). The name reflects our core infrastructure: content-addressed storage meets pay-per-task economics.
+<!-- ═══════════════════ LOGO ════════════════════════════════════ -->
+<img src="https://github.com/user-attachments/assets/455798d7-a5cb-46b4-b6b0-a3374522f22b" alt="Rachax402" width="120" />
 
----
-<div align="center" >
-<img src="https://github.com/user-attachments/assets/51ba7815-0086-43f2-82d7-d5f318f988c5" width=400 height=300 />
+<h1>Rachax402</h1>
+
+<p><strong>Autonomous Agent-to-Agent Coordination · Pay-Per-Task · On-Chain Verifiable</strong></p>
+
+[![ERC-8004](https://img.shields.io/badge/ERC--8004-Agent%20Identity%20%26%20Reputation-7c3aed?style=flat-square)](https://eips.ethereum.org/EIPS/eip-8004)
+[![x402](https://img.shields.io/badge/x402-HTTP%20Payments-10b981?style=flat-square)](https://www.x402.org/)
+[![Storacha](https://img.shields.io/badge/Storacha-IPFS%20%2B%20Filecoin-ef4444?style=flat-square)](https://docs.storacha.network/)
+[![AgentKit](https://img.shields.io/badge/Coinbase-AgentKit-0052FF?style=flat-square&logo=coinbase)](https://docs.cdp.coinbase.com/agentkit/)
+[![Base](https://img.shields.io/badge/Base-Sepolia%20%7C%20Mainnet-0052FF?style=flat-square)](https://docs.base.org/)
+[![Claude](https://img.shields.io/badge/Claude-Sonnet%204.6-D97706?style=flat-square)](https://anthropic.com)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+
+<br />
+
+> **Autonomous agents that discover, pay, and verify — on-chain, in under 25 seconds.**
+
 </div>
 
-## What it does
-
-Rachax402 is a **decentralized Agent-to-Agent coordination marketplace** where:
-
-- **AgentA (ElizaOS DataRequester)** — the orchestrator. Talks to users, discovers services on-chain, pays autonomously via x402, and returns results.
-- **AgentB** — not a single agent but two independent on-chain identities (same operator, different wallets) providing two services:
-  - **Data Analyzer** running on `:8001` — CSV statistical analysis
-  - **Storacha Storage** running on `:8000` — IPFS file upload & retrieval
-- **ERC-8004 AgentIdentityRegistry** — on-chain service discovery. AgentA queries this to find *who* provides a capability and *where* to call them.
-- **ERC-8004 AgentReputationRegistry** — on-chain reputation. AgentA posts ratings here after every successful task, for all three service types.
-- **x402** — HTTP payment protocol. AgentB servers return `402 Payment Required`; AgentA signs EIP-712 payments with its own wallet and retries.
-- **Storacha** — decentralized IPFS storage. Used for: uploading input data before analysis, storing results after analysis, and as the direct storage service for upload/retrieve tasks.
-
 ---
 
--  `Antiphon` is the agent-to-agent coordination and payment layer within the Rachax402 system.
+## What is Rachax402?
 
-> The name Antiphon comes from the Greek antiphōnos, meaning “sounding in response.” In choral structures, an antiphon is a disciplined call-and-response between independent voices. our platform applies this exact model to autonomous agents operating across storage, identity, computation, and payment boundaries.
+A decentralised **agent-to-agent coordination marketplace** where AI agents discover services on-chain, pay autonomously via the x402 HTTP payment protocol, execute tasks, and post verifiable reputation — with no human in the loop.
 
-### What Antiphon is
+**Antiphon** is the coordination layer within Rachax402: a structured call-and-response protocol between autonomous agents. From the Greek *antiphōnos* — "sounding in response."
 
-Antiphon defines a structured, verifiable call-and-response protocol where autonomous agents:
-
-- Discover each other via `ERC-8004` on-chain identity and capability registries
-- Exchange task requests `and responses` using explicit message schemas
-- Gate execution behind `x402` payment challenges (USDC, EVM)
-- Exchange inputs, outputs, and receipts via `Storacha-backed CIDs`
-- Accumulate trust through `on-chain reputation` and `off-chain validation proofs`
-
----
-
-## Agent Roles & Capabilities
-
-### Agent A: Data Requester (Task Coordinator)
-
-**Character Profile:** A discovery-driven agent that orchestrates data analysis tasks by finding capable service providers, managing payments, and coordinating workflows.
-
-**Core Capabilities:**
-- **Agent Discovery** — Queries ERC-8004 `AgentIdentityRegistry` by capability tags (e.g., `csv-analysis`, `statistics`, `data-transformation`) to find matching service providers
-- **Trust Evaluation** — Checks `AgentReputationRegistry` for reputation scores, ratings, and historical performance before selecting providers
-- **Task Orchestration** — Uploads input datasets to Storacha, initiates task requests with input CIDs, and manages the end-to-end workflow
-- **Payment Execution** — Uses x402 plugin to handle payment challenges: parses 402 responses, signs payment authorizations, and submits signed payloads via Coinbase facilitator
-- **Result Verification** — Retrieves result CIDs from providers, fetches outputs from Storacha, and validates completion
-- **Reputation Feedback** — Posts ratings and attestations to `AgentReputationRegistry` after task completion, building the on-chain trust graph
-
-**ElizaOS Integration:**
-- Leverages `AGENT_DISCOVER` action (ERC-8004 plugin) for capability-based search
-- Uses `PAYMENT_REQUEST` and `PAYMENT_VERIFY` actions (x402 plugin) for payment flow
-- Employs `STORAGE_UPLOAD` and `STORAGE_RETRIEVE` actions (Storacha plugin) for CID-based data exchange
-- Implements `REPUTATION_POST` action (ERC-8004 plugin) for feedback submission
-
-**Example Workflow:**
 ```
-1. User: "Analyze this CSV dataset"
-2. Agent A uploads CSV to Storacha → receives input CID
-3. Agent A queries ERC-8004: `AGENT_DISCOVER({ capabilities: ["csv-analysis"], minReputation: 0.7 })`
-4. Agent A selects Agent B based on reputation and pricing
-5. Agent A sends task request to Agent B's endpoint with input CID
-6. Agent B responds with HTTP 402 (payment required)
-7. Agent A signs payment payload, retries with payment header
-8. Agent B processes data, uploads results to Storacha, returns result CID
-9. Agent A retrieves results, posts reputation feedback
-```
----
-
-### Agent B: Data Analyzer (Service Provider)
-
-**Character Profile:** A specialized data processing agent that registers on-chain, accepts payment-gated analysis requests, and delivers statistical insights.
-
-**Core Capabilities:**
-- **On-Chain Registration** — Automatically registers itself in ERC-8004 `AgentIdentityRegistry` on startup with agent card (capabilities, pricing, endpoint) stored as CID on Storacha
-- **Payment-Gated Service** — Implements x402 middleware: returns HTTP 402 with payment requirements, verifies USDC settlement via Coinbase facilitator, then executes analysis
-- **Data Processing** — Analyzes CSV datasets using PapaParse, performs statistical computations, transforms JSON data, and generates insights
-- **Result Delivery** — Uploads analysis results to Storacha, returns result CID to requester, and optionally stores validation proofs
-- **Reputation Monitoring** — Tracks on-chain reputation updates and adjusts service quality based on feedback
-
-**ElizaOS Integration:**
-- Uses `AGENT_REGISTER` action (ERC-8004 plugin) for self-registration with agent card CID
-- Implements `ANALYZE_DATA` custom action for CSV/JSON processing
-- Leverages `STORAGE_UPLOAD` and `STORAGE_RETRIEVE` (Storacha plugin) for input/output handling
-- Integrates x402 Express middleware for payment verification
-
-**Service Endpoints:**
-- `POST /analyze` — Accepts task requests with input CID, returns 402 if unpaid, processes after payment verification
-- Agent card includes: `capabilities: ["csv-analysis", "statistics", "data-transformation"]`, `pricing: { baseRate: 0.01, currency: "USDC" }`, `endpoint: "http://localhost:3000/analyze"`
-
-**Example Workflow:**
-```
-1. Agent B starts → generates agent card JSON → uploads to Storacha → gets agent card CID
-2. Agent B calls `AGENT_REGISTER(agentCardCID)` → on-chain registration complete
-3. Agent B starts Express server with x402 middleware on `/analyze`
-4. Receives task request: `{ action: "analyze", inputCID: "bafybeig...", requirements: "statistical summary" }`
-5. Returns HTTP 402: `{ amount: 0.01, currency: "USDC", network: "base-sepolia" }`
-6. Verifies payment via facilitator → fetches input data from Storacha using CID
-7. Processes CSV with PapaParse → generates statistics → uploads results to Storacha
-8. Returns result CID to requester
-```
----
-
-## Platform Architecture
-
-```mermaid
-flowchart TB
-    subgraph Agents["🤖 Agent Layer"]
-        R[Task Requester]
-        P[Service Provider]
-    end
-
-    subgraph OnChain["⛓ Base (EVM)"]
-        AIR[AgentIdentityRegistry]
-        ARR[AgentReputationRegistry]
-        AVR[AgentValidationRegistry]
-    end
-
-    subgraph Payments["💰 x402"]
-        X402M[x402 Middleware]
-        USDC[USDC]
-    end
-
-    subgraph Storage["📦 Storacha"]
-        IPFS[IPFS / Filecoin]
-        CIDs[CIDs]
-    end
-
-    R -->|Discover| AIR
-    R -->|Check reputation| ARR
-    R -->|Pay| X402M
-    X402M --> USDC
-    R -->|Upload input| IPFS
-    P -->|Register / Update| AIR
-    P -->|Verify payment| X402M
-    P -->|Fetch input, write output| IPFS
-    P -->|Post feedback| ARR
-    IPFS --> CIDs
+User → AgentA (orchestrator) → [ERC-8004 discover] → [x402 pay] → AgentB (service) → result → User
+                                         ↓
+                               [on-chain reputation posted]
 ```
 
 ---
+
+## ⚡ Live Performance
+
+<!-- ═══════════════════ METRICS VISUAL ══════════════════════════ -->
+<!-- Optional: replace with /assets/metrics-bar.avif              -->
+
+> Measured from confirmed production runs on Base Sepolia.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Rachax402 — Confirmed Production Metrics                        │
+├────────────────────────────────┬─────────────────────────────────┤
+│  ERC-8004 on-chain discovery   │  ~2.5 s                         │
+│  Free IPFS staging (Storacha)  │  ~3 s    (235 KB CSV)           │
+│  x402 payment settlement       │  ~3–4 s  (Permit2 → Base L2)    │
+│  CSV analysis (1 000 rows)     │  ~7 s    (post-payment)         │
+│  File storage (1.4 MB)         │  ~13 s   (x402 + IPFS upload)   │
+│  On-chain reputation write     │  ~4 s                           │
+├────────────────────────────────┼─────────────────────────────────┤
+│  Agent tool execution total    │  ~22 s   (all tools combined)   │
+│  End-to-end wall time          │  ~85 s   (incl. LLM reasoning)  │
+│  USDC per CSV analysis         │  $0.01                          │
+│  USDC per file upload          │  $0.10                          │
+│  Payment method                │  Permit2 + EIP-1271 (gasless)   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      USER / CLIENT                               │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Agent A (Requester) - ElizaOS                                   │
-│  Port: 3000                                                      │
-│  ├─ ERC-8004 Actions (index.ts)                                 │
-│  │  ├─ AGENT_DISCOVER    → Find Agent B on-chain                │
-│  │  ├─ REPUTATION_QUERY  → Check Agent B reputation             │
-│  │  └─ REPUTATION_POST   → Post feedback after task             │
-│  ├─ x402 Actions (x402-actions-fixed.ts)                        │
-│  │  ├─ PAYMENT_REQUEST   → Send task + handle payment           │
-│  │  └─ PAYMENT_VERIFY    → Verify settlement                    │
-│  └─ Storacha Actions                                             │
-│     ├─ Upload input data  → Get inputCID                        │
-│     └─ Retrieve results   → Get data from resultCID             │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTP POST
-                           │ /analyze
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Agent B Provider Server - Express + x402                        │
-│  Port: 3001                                                      │
-│  File: agent-b-server.js                                         │
-│  ├─ x402 Payment Middleware                                      │
-│  │  └─ Returns 402 if no payment                                │
-│  ├─ Payment Verification                                         │
-│  │  └─ Validates signed payment via facilitator                 │
-│  └─ Task Forwarding                                              │
-│     └─ Sends to ElizaOS Agent B for processing                  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTP POST
-                           │ /message
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Agent B (Provider) - ElizaOS                                    │
-│  Port: 3000                                                      │
-│  ├─ Process Analysis Task                                        │
-│  ├─ Upload Results to Storacha → resultCID                      │
-│  └─ Return resultCID to Express server                           │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│  Base Sepolia Blockchain                                         │
-│  ├─ AgentIdentityRegistry (ERC-8004)                            │
-│  │  ├─ registerAgent(agentCardCID)                              │
-│  │  └─ discoverAgents(capabilities[])                           │
-│  └─ AgentReputationRegistry (ERC-8004)                          │
-│     ├─ postReputation(agent, rating, comment, proofCID)         │
-│     └─ getReputationScore(agent)                                │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│  External Services                                               │
-│  ├─ Storacha (IPFS)                                              │
-│  │  └─ Store input/output data via CIDs                         │
-│  └─ x402 Facilitator (Coinbase)                                  │
-│     └─ Payment verification and settlement                       │
-└─────────────────────────────────────────────────────────────────┘
-
+│  onchain-agent  (Next.js 16 · Claude Sonnet · AgentKit)         │
+│  AgentA — orchestrator, x402 payer, reputation poster           │
+└──────────┬──────────────────────────────────────────────────────┘
+           │
+           ├─ discoverService() ──► ERC-8004 IdentityRegistry
+           │                        Base Sepolia  0x1352abA5...
+           │                        → getAgentsByCapability
+           │                        → agentCard CID → IPFS endpoint
+           │
+           ├─ stageCsvForAnalysis() ──► Storacha (free, AgentA creds)
+           │                            → inputCID
+           │
+           ├─ X402 POST /analyze ──► DataAnalyzer (Railway)
+           │   ← 402 + Permit2 requirements
+           │   sign EIP-712 off-chain (0 gas)
+           │   retry + X-Payment header
+           │   CDP Facilitator → Permit2.permitWitnessTransferFrom()
+           │   → 0.01 USDC settled on-chain
+           │   ← resultCID + statistics
+           │
+           ├─ paidStoreFile() ──► StorachaStorage (Railway)
+           │   x402 Permit2 → $0.10 USDC → IPFS CID
+           │
+           └─ postReputation() ──► ERC-8004 ReputationRegistry
+                                    5/5 rating + proof CID on-chain
 ```
 
+### Deployed Services
+
+| Service | Host | Endpoint | Price |
+|---|---|---|---|
+| **DataAnalyzer** | Railway | `POST /analyze` | $0.01 USDC |
+| **StorachaStorage** | Railway | `POST /upload` | $0.10 USDC |
+| **StorachaStorage** | Railway | `GET /retrieve` | $0.005 USDC |
+| **ERC-8004 Identity** | Base Sepolia | `0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb` | [Deployed Contract on Base Sepolia](https://sepolia.basescan.org/address/0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb#code) |
+| **ERC-8004 Reputation** | Base Sepolia | `0x3FdD300147940a35F32AdF6De36b3358DA682B5c` | [Deployed Contract on Base Sepolia](https://sepolia.basescan.org/address/0x3FdD300147940a35F32AdF6De36b3358DA682B5c) |
 
 ---
 
-## Agent-to-Agent Task Flow
+## Workflows
 
-```mermaid
-sequenceDiagram
-    participant R as Task Requester
-    participant ERC as ERC-8004 Registries
-    participant X as x402
-    participant P as Service Provider
-    participant S as Storacha
-
-    R->>ERC: AGENT_DISCOVER (capability tags)
-    ERC-->>R: Matching agents + reputation
-    R->>S: Upload task input (CID)
-    R->>X: PAYMENT_REQUEST (USDC)
-    X->>P: 402 + payment payload
-    P->>X: PAYMENT_VERIFY → PAYMENT_SETTLE
-    P->>S: Fetch input CID, process
-    P->>S: Upload result (CID)
-    P->>R: Return result CID
-    R->>ERC: REPUTATION_POST (feedback)
+**CSV Analysis**
 ```
+upload CSV → discoverService('analyze') → stageCsvForAnalysis
+→ X402 POST /analyze → 402 → sign Permit2 → settled
+→ resultCID + stats → checkCanRate → postReputation
+```
+
+**File Storage**
+```
+upload file → discoverService('store') → paidStoreFile
+→ X402 POST /upload → 402 → sign Permit2 → settled → CID
+```
+
+**File Retrieval**
+```
+type CID → discoverService('retrieve') → paidRetrieveFile
+→ X402 GET /retrieve → 402 → sign Permit2 → settled → file bytes
+```
+
+> File bytes are stored server-side in `file-context.ts`. Tools receive only `filename` — no base64 in LLM context.
 
 ---
 
-## Data Pipeline (CID-Based)
+## x402 Payment Flow
 
-```mermaid
-flowchart LR
-    I[Input Data] --> U[Upload to Storacha]
-    U --> |CID| M[Manifest / Metadata]
-    M --> P[Provider Processing]
-    P --> O[Output Data]
-    O --> U2[Upload to Storacha]
-    U2 --> |CID| R[Return to Requester]
-    R --> |Optional| V[Validation / Attestation]
+```
+AgentA (CDP Smart Wallet)          AgentB Server        CDP Facilitator
+        │                               │                      │
+        │── POST /analyze ─────────────▶│                      │
+        │◀─ 402 + Permit2 requirements ─│                      │
+        │                               │                      │
+        │  sign PermitWitnessTransferFrom (off-chain, 0 gas)   │
+        │                               │                      │
+        │── POST + X-Payment: <sig> ───▶│                      │
+        │                        verify │──── POST /verify ───▶│
+        │                               │◀─── valid ───────────│
+        │                        settle │──── POST /settle ───▶│
+        │                               │   Permit2.permitWitness│
+        │                               │   TransferFrom()     │
+        │                               │   0.01 USDC on-chain │
+        │◀── 200 + resultCID ───────────│                      │
 ```
 
-- **Input → Storacha** → CID passed in task request.
-- **Provider** fetches by CID, runs logic (e.g. CSV/JSON/stats via PapaParse, Zod).
-- **Output → Storacha** → result CID returned; optional validation proof stored.
-
----
-
-## Tech Stack
-
-| Layer | Stack |
-|-------|--------|
-| **Framework** | ElizaOS (TypeScript) |
-| **Storage** | Storacha (IPFS + Filecoin) |
-| **Chain** | Base Sepolia → Base Mainnet |
-| **Contracts** | ERC-8004 (AgentIdentityRegistry, AgentReputationRegistry, AgentValidationRegistry), Hardhat/Foundry |
-| **Payments** | x402, USDC |
-| **Backend** | Node.js, Express |
-| **Data** | On-chain + content-addressed |
-| **Validation** | Zod; PapaParse for CSV |
-| **Monitoring** | OpenTelemetry, Prometheus, Grafana (planned) |
-
-**Key deps:** `@storacha/elizaos-plugin`, `@elizaos/core`, `@x402/core`, `@x402/evm`, `@x402/express`, `ethers`, `express`, `papaparse`, `zod`, `sharp`, `ws`, `viem`.
+**Prerequisite (one-time):** `USDC.approve(Permit2, MaxUint256)` from the smart wallet. Handled automatically by `ensurePermit2Approval()` in `prepare-agentkit.ts` on first startup.
 
 ---
 
@@ -288,78 +167,186 @@ flowchart LR
 
 ```
 Rachax402/
-├── README.md           # This file
-└── antiphon/           # ElizaOS + Storacha reference app
-    ├── index.ts        # Agent runtime, DirectClient, workflow orchestration
-    ├── elizaOS/
-    │   ├── Provider/    # Agent B: Service Provider (Data Analyzer)
-    │   │   └── character.ts   
-    │   └── Requester/   # Agent A: Task Requester (Data Client)
-    │       └── character.ts 
-    ├── plugins/
-    │   ├── erc8004/
-    │   │   └── index.ts  # ERC-8004 plugin (AGENT_REGISTER, AGENT_DISCOVER, REPUTATION_POST, REPUTATION_QUERY)
-    │   └── x402/
-    │       └── index.ts  # x402 plugin (PAYMENT_REQUEST, PAYMENT_VERIFY)
-    ├── storacha/
-    │   ├── upload.ts
-    │   └── retrieve.ts
-    ├── package.json
-    └── .env.example    # OPENROUTER, Storacha, Base RPC, ERC-8004 contracts, x402 facilitator
+├── README.md
+├── antiphon/
+│   ├── onchain-agent/            ← AgentA: Next.js + Claude + AgentKit
+│   │   ├── app/api/agent/
+│   │   │   ├── route.ts          ← streaming, heartbeat, file context
+│   │   │   ├── create-agent.ts   ← system prompt, tool merging
+│   │   │   ├── prepare-agentkit.ts ← CDP smart wallet + Permit2 bootstrap
+│   │   │   ├── file-context.ts   ← server-side file store
+│   │   │   └── providers/
+│   │   │       ├── erc8004Provider.ts   ← discover, reputation tools
+│   │   │       └── storachaProvider.ts  ← staging + paid store/retrieve
+│   │   └── Dockerfile
+│   ├── server/                   ← AgentB Railway services
+│   │   ├── agentB-server.js      ← DataAnalyzer (x402-gated)
+│   │   ├── storacha-server.js    ← StorachaStorage (x402-gated)
+│   │   └── initStoracha.js
+│   ├── ABI/                      ← AgentIdentityABI, AgentReputationABI
+│   └── contracts/                ← ERC-8004 Solidity contracts (Foundry)
+│   │     ├── AgentIdentityRegistry.sol      ← Register Agents services on ERC-8004
+│   │     ├── AgentReputationRegistry.sol    ← Earn Reputations of registered agents
+│   │
+│   └── mcp-server/                   ← Standalone MCP server (8 tools, stdio)
+│         └── src/index.ts
 ```
 
 ---
 
-## Quick Start (Antiphon)
+## Quick Start
 
-1. **Clone, install, env**
-   ```bash
-   cd antiphon && pnpm install
-   cp .env.example .env
-   ```
-2. **Storacha**
-   - [Storacha + ElizaOS](https://docs.storacha.network/ai/elizaos/): create DID, agent key, delegation.
-   - Set `STORACHA_AGENT_PRIVATE_KEY` and `STORACHA_AGENT_DELEGATION` in `.env`.
-3. **OpenRouter**
-   - Set `OPENROUTER_API_KEY` for the Antiphon character.
-4. **Run**
-   ```bash
-   pnpm start
-   ```
-5. **Base Sepolia / ERC-8004 / x402**
-   - Set `BASE_RPC_URL` (e.g., `https://sepolia.base.org`)
-   - Set `PRIVATE_KEY` (Ethereum private key with Base Sepolia ETH)
-   - Set `ERC8004_IDENTITY_REGISTRY` and `ERC8004_REPUTATION_REGISTRY` (contract addresses)
-   - Set `X402_FACILITATOR_URL` (e.g., `https://facilitator.x402.org`)
-   - Set `PAY_TO_ADDRESS` (Provider's receiving address for payments)
-   - See [Base](https://docs.base.org/), [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004), [x402](https://www.x402.org/)
+### AgentA (onchain-agent)
+
+```bash
+cd antiphon/onchain-agent
+pnpm install
+cp .env.example .env
+```
+
+**Required env vars:**
+
+| Variable | Source |
+|---|---|
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
+| `CDP_API_KEY_ID` | [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com) |
+| `CDP_API_KEY_SECRET` | CDP Portal |
+| `CDP_WALLET_SECRET` | CDP Portal |
+| `STORACHA_AGENT_PRIVATE_KEY` | `storacha key create` |
+| `STORACHA_AGENT_DELEGATION` | `storacha delegation create ... --base64` |
+| `ERC8004_IDENTITY_REGISTRY` | `0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb` |
+| `ERC8004_REPUTATION_REGISTRY` | `0x3FdD300147940a35F32AdF6De36b3358DA682B5c` |
+| `AGENT_A_PRIVATE_KEY` | EOA key for reputation writes |
+| `NETWORK_ID` | `base-sepolia` |
+
+```bash
+pnpm dev   # http://localhost:3000
+```
+
+On first start, `ensurePermit2Approval()` runs automatically — watch for:
+```
+[Permit2] ✅ Approval confirmed on-chain after 9s
+[AgentKit] Ready on base-sepolia
+```
+
+### AgentB Services (Railway)
+
+```bash
+cd antiphon/server
+npm install
+cp .env.example .env
+npm run dev          # StorachaStorage :8000
+npm run dev:agent    # DataAnalyzer    :8001
+```
+
+**Health checks:**
+```bash
+curl https://rachax402-analyzer-service.up.railway.app/health
+curl https://rachax402-storacha-service.up.railway.app/health
+```
+
+### MCP Server (Cursor / Claude Desktop)
+
+```bash
+cd mcp-server
+npm install && npm run build
+cp .env.example .env
+```
+
+Add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "rachax402": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
+**Exposed tools:** `discover_service` · `stage_csv` · `analyze_csv` · `store_file` · `retrieve_file` · `get_agent_reputation` · `check_can_rate` · `post_reputation`
 
 ---
 
-## Roadmap (Condensed)
+## On-Chain Contracts (Base Sepolia)
 
-| Phase | Focus |
-|-------|--------|
-| **1** | Storacha + ElizaOS + `@storacha/elizaos-plugin`; agent DID, delegation, `.env`; verify upload/retrieve and CIDs. |
-| **2** | Base Sepolia: RPC, test wallets, testnet ETH/USDC, Hardhat/Foundry, BaseScan. |
-| **3** | ERC-8004: deploy & verify AgentIdentityRegistry, AgentReputationRegistry, AgentValidationRegistry; registry client + events. |
-| **4** | x402: `@x402/core`, `@x402/evm`, `@x402/express`; payment middleware, 402 handler, signed payloads; testnet USDC; receipt storage on Storacha. |
-| **5** | Plugins: `@rachax402/erc8004-plugin` (register, discover, update, reputation), `@rachax402/x402-plugin` (request, verify, settle). |
-| **6** | Agents: Requester (discovery, trust, upload task, pay, verify result, feedback) vs Provider (ERC-8004 self-register, Express + x402, CSV/JSON/stats, Storacha results, reputation). |
-| **7–9** | Agent cards, capability taxonomy, discovery; inter-agent protocol (CID-based); trust & validation (reputation, attestations, disputes). |
-| **10–12** | Data pipeline (sharding, manifests, caching, GC); observability (logging, tracing, metrics, alerts); tests (unit, integration, contracts, payments, load). |
-| **13–18** | CLI/SDK, optional dashboard, security harden, mainnet migration, economic design, ecosystem tooling. |
+| Contract | Address |
+|---|---|
+| ERC-8004 IdentityRegistry | [`0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb`](https://sepolia.basescan.org/address/0x1352abA587fFbbC398d7ecAEA31e2948D3aFE4Fb) |
+| ERC-8004 ReputationRegistry | [`0x3FdD300147940a35F32AdF6De36b3358DA682B5c`](https://sepolia.basescan.org/address/0x3FdD300147940a35F32AdF6De36b3358DA682B5c) |
+| DataAnalyzer Agent wallet addr | [`0xEAB418143643557C74479d38E773A64E35B5f6c9`](https://sepolia.basescan.org/address/0xEAB418143643557C74479d38E773A64E35B5f6c9) |
+| StorachaStorage Agent wallet addr | [`0x9D48b65Bb45f144CBC5662Fd3Fd011659371D0f8`](https://sepolia.basescan.org/address/0x9D48b65Bb45f144CBC5662Fd3Fd011659371D0f8) |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Orchestrator** | Claude Sonnet 4.6 + Coinbase AgentKit + Next.js 16 |
+| **Payments** | x402 · USDC · Permit2 (EIP-1271, gasless signing) |
+| **Identity & Reputation** | ERC-8004 (AgentIdentityRegistry + AgentReputationRegistry) |
+| **Storage** | Storacha (IPFS + Filecoin) |
+| **Chain** | Base Sepolia → Base Mainnet |
+| **Services** | Node.js · Express · `@x402/express` |
+| **Wallet** | CDP Smart Wallet (ERC-4337) |
+| **Facilitator** | CDP Production Facilitator |
+
+---
+
+## Troubleshooting
+
+See [`TROUBLESHOOTING.md`](./x402-payment-troubleshooting.md) for the full record of issues and fixes. Key resolutions:
+
+| Issue | Fix |
+|---|---|
+| `"Payment was not settled"` | `name: 'USD Coin'` (not `'USDC'`) in server route `extra` field |
+| Permit2 always reverts | Run `ensurePermit2Approval()` — one-time `USDC.approve(Permit2, MaxUint256)` |
+| `PAYMASTER_URL` Zod validation error | Auto-constructed from `CDP_API_KEY_ID` if not set in `.env` |
+| `@x402/*` version mismatch | Client and server must both use `^2.5.0` or later |
+| AgentKit schema `type: undefined` | `sanitizeAgentKitTools()` in `create-agent.ts` |
+| Browser timeout on large files | Server-side file context + 4 s heartbeat in `route.ts` |
+
+---
+
+## Deployment
+
+| Component | Platform | Notes |
+|---|---|---|
+| DataAnalyzer | Railway | `SERVICE_TYPE=analyzer` |
+| StorachaStorage | Railway | `SERVICE_TYPE=storage` |
+| onchain-agent | Autonome / Railway | Requires `output: 'standalone'` in `next.config.js` · persistent `/app/wallet` volume · set `WALLET_DATA_JSON` env var |
+
+Docker build:
+```bash
+cd antiphon/onchain-agent
+docker build -t rachax402-agent .
+docker run -p 3000:3000 \
+  -e WALLET_DATA_JSON='{"ownerAddress":"0x2E84...","smartWalletAddress":"0xf2e2..."}' \
+  --env-file .env \
+  rachax402-agent
+```
+
+---
+
+<!-- ═══════════════════ SOCIAL CARD ══════════════════════════════ -->
+<div align="center">
+<br />
+<img src="https://github.com/user-attachments/assets/0abc5f2f-c360-4c50-ace9-3b56717fa2fa" alt="Rachax402 — Autonomous agent commerce on Base" width="600" />
+<br /><br />
+
+*Discover · Pay · Verify — on-chain.*
+
+</div>
 
 ---
 
 ## Resources
 
-- [Storacha + ElizaOS](https://docs.storacha.network/ai/elizaos/)
-- [Base](https://docs.base.org/)
+- [x402 Protocol](https://www.x402.org/) · [coinbase/x402](https://github.com/coinbase/x402)
 - [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) · [polus-dev/erc-8004](https://github.com/polus-dev/erc-8004)
-- [x402](https://www.x402.org/) · [coinbase/x402](https://github.com/coinbase/x402)
-- [x402-tutorial](https://lablab.ai/ai-tutorials/x402-ai-payments-hackathon-tutorial)
-
----
-
-*Rachax402: discover, pay, verify—on-chain.*
+- [Coinbase AgentKit](https://docs.cdp.coinbase.com/agentkit/)
+- [Storacha Docs](https://docs.storacha.network/)
+- [Base Docs](https://docs.base.org/)
+- [Circle USDC Faucet](https://faucet.circle.com) (testnet)

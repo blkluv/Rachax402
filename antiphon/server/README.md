@@ -123,15 +123,15 @@ STORACHA_AGENT_DELEGATION=...
 
 After both services deploy, update ERC-8004 agent cards so AgentA discovers the Railway URLs:
 ```bash
-ANALYZER_URL=https://your-analyzer.up.railway.app \
-STORAGE_URL=https://your-storage.up.railway.app \
+ANALYZER_URL=https://rachax402-analyzer-service.up.railway.app \
+STORAGE_URL=https://rachax402-storacha-service.up.railway.app \
 node update-agent-cards.js
 ```
 
 Verify:
 ```bash
-curl https://your-analyzer.up.railway.app/health
-curl https://your-storage.up.railway.app/health
+curl https://rachax402-analyzer-service.up.railway.app/health
+curl https://rachax402-storacha-service.up.railway.app/health
 ```
 
 ---
