@@ -62,7 +62,7 @@ const routes = {
         price: '$0.01',
         network: NETWORK,
         payTo: RECIPIENT_ADDRESS,
-        extra: { assetTransferMethod: 'permit2', name: 'USDC', version: '2' },
+        extra: { assetTransferMethod: 'permit2', name: 'USD Coin', version: '2' },
       },
     ],
     description: 'Analyze CSV dataset with statistical computation. Accepts an IPFS CID pointing to CSV data, returns resultCID with analysis.',
