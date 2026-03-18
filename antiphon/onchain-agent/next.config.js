@@ -1,9 +1,19 @@
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Required for Docker standalone output (Railway / Autonome deployment)
   output: "standalone",
 
-  // Allow large base64 file uploads in API routes
+  // Pin tracing root to this package — prevents Next.js from inferring the wrong
+  // workspace root when pnpm-lock.yaml exists in a parent directory.
+  // Without this, standalone output may be incomplete.
+  outputFileTracingRoot: path.join(__dirname, "../../"),
+
+  // Allow large file uploads in API routes
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",
@@ -11,18 +21,12 @@ const nextConfig = {
   },
 
   // ── Server-only packages ─────────────────────────────────────────────────────
-  // Tells Webpack NOT to bundle these — load them from node_modules at runtime.
-  // Required because these packages use Node.js crypto/fs/wasm/native bindings
-  // that cannot be statically bundled.
-  //
-  // IMPORTANT: This only works with Webpack. The Dockerfile uses
-  //   npx next build --no-turbopack
-  // to force Webpack. Turbopack ignores serverExternalPackages entirely.
-  //
-  // Subpath imports (e.g. @storacha/client/proof) must be listed separately —
-  // Webpack does not automatically cover subpaths when only the root is listed.
+  // Webpack skips bundling these and loads them from node_modules at runtime.
+  // Required for packages using Node.js crypto / fs / wasm / native bindings.
+  // "build" script uses --webpack so Turbopack (which ignores this) is not used.
+  // Subpath imports must be listed individually — Webpack does not auto-cover them.
   serverExternalPackages: [
-    // Storacha — root + all used subpaths
+    // Storacha — root + subpaths used in storachaProvider.ts
     "@storacha/client",
     "@storacha/client/stores/memory",
     "@storacha/client/proof",
@@ -31,7 +35,7 @@ const nextConfig = {
     "@storacha/filecoin-client",
     "@storacha/capabilities",
 
-    // ucan / ucanto stack (Storacha internals)
+    // ucanto stack (Storacha internals)
     "@ucanto/core",
     "@ucanto/client",
     "@ucanto/interface",
@@ -52,14 +56,13 @@ const nextConfig = {
     "@coinbase/cdp-sdk",
     "@coinbase/x402",
 
-    // Solana — transitive deps from agentkit (not used directly)
+    // Solana transitive deps from agentkit
     "@solana-program/token",
     "@solana-program/system",
     "@solana/web3.js",
     "@solana/spl-token",
-    "solana",
 
-    // Viem + ethers — use Node.js crypto module
+    // Viem / ethers — use Node.js crypto
     "viem",
     "viem/accounts",
     "viem/chains",
