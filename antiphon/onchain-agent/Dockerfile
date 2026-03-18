@@ -122,9 +122,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Mount volume here for wallet persistence (Option B/C)
-VOLUME ["/app/wallet"]
-
 # Health check: GET / returns 200 when Next.js is up (node-based, no wget dep)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/',r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
