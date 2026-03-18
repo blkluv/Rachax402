@@ -3,7 +3,7 @@ const nextConfig = {
   // Required for Docker standalone output (Railway / Autonome deployment)
   output: "standalone",
 
-  // Allow large base64 file uploads in API routes (50MB body limit)
+  // Allow large base64 file uploads in API routes
   experimental: {
     serverActions: {
       bodySizeLimit: "50mb",
@@ -11,21 +11,27 @@ const nextConfig = {
   },
 
   // ── Server-only packages ─────────────────────────────────────────────────────
-  // These packages use Node.js APIs (fs, crypto, net, wasm, native bindings)
-  // that cannot be bundled by Webpack/Turbopack during `next build`.
-  // Listing them here tells Next.js to leave them as bare `require()`/`import()`
-  // calls at runtime and load them directly from node_modules instead.
+  // Tells Webpack NOT to bundle these — load them from node_modules at runtime.
+  // Required because these packages use Node.js crypto/fs/wasm/native bindings
+  // that cannot be statically bundled.
   //
-  // Without this, `npm run build` fails with "module not found" for:
-  //   storachaProvider.ts  → @storacha/client, @x402/fetch, @x402/evm
-  //   create-agent.ts      → @coinbase/agentkit, @coinbase/agentkit-vercel-ai-sdk
-  //   agentkit internals   → @solana-program/token (transitive dep)
+  // IMPORTANT: This only works with Webpack. The Dockerfile uses
+  //   npx next build --no-turbopack
+  // to force Webpack. Turbopack ignores serverExternalPackages entirely.
+  //
+  // Subpath imports (e.g. @storacha/client/proof) must be listed separately —
+  // Webpack does not automatically cover subpaths when only the root is listed.
   serverExternalPackages: [
-    // Storacha / IPFS
+    // Storacha — root + all used subpaths
     "@storacha/client",
+    "@storacha/client/stores/memory",
+    "@storacha/client/proof",
+    "@storacha/client/principal/ed25519",
     "@storacha/upload-client",
     "@storacha/filecoin-client",
     "@storacha/capabilities",
+
+    // ucan / ucanto stack (Storacha internals)
     "@ucanto/core",
     "@ucanto/client",
     "@ucanto/interface",
@@ -35,7 +41,9 @@ const nextConfig = {
     // x402 payment protocol
     "@x402/fetch",
     "@x402/evm",
+    "@x402/evm/exact/client",
     "@x402/core",
+    "@x402/core/server",
     "@x402/express",
 
     // Coinbase AgentKit + CDP
@@ -44,15 +52,17 @@ const nextConfig = {
     "@coinbase/cdp-sdk",
     "@coinbase/x402",
 
-    // Solana transitive deps from agentkit (not used, but present in node_modules)
+    // Solana — transitive deps from agentkit (not used directly)
     "@solana-program/token",
     "@solana-program/system",
     "@solana/web3.js",
     "@solana/spl-token",
     "solana",
 
-    // Viem / ethers — use Node.js crypto
+    // Viem + ethers — use Node.js crypto module
     "viem",
+    "viem/accounts",
+    "viem/chains",
     "ethers",
   ],
 };

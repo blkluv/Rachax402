@@ -36,7 +36,7 @@ ENV ANTHROPIC_API_KEY=build-placeholder
 ENV CDP_API_KEY_ID=build-placeholder
 ENV CDP_API_KEY_SECRET=build-placeholder
 
-RUN npm run build
+RUN npx next build --no-turbopack
 
 # Fail fast if next.config.js is missing  output: 'standalone'
 RUN test -f .next/standalone/server.js || \
