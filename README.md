@@ -1,9 +1,9 @@
 <div align="center">
 
 <!-- ═══════════════════ BANNER IMAGE ════════════════════════════ -->
-<img src="https://github.com/user-attachments/assets/a235e9ad-63d8-4908-aa4a-049dd3b5d529" alt="Rachax402 Banner" width="100%" />
+<!-- <img src="https://github.com/user-attachments/assets/a235e9ad-63d8-4908-aa4a-049dd3b5d529" alt="Rachax402 Banner" width="100%" />
 
-<br />
+<br /> -->
 
 <!-- ═══════════════════ LOGO ════════════════════════════════════ -->
 <img src="https://github.com/user-attachments/assets/455798d7-a5cb-46b4-b6b0-a3374522f22b" alt="Rachax402" width="120" />
@@ -43,12 +43,15 @@ User → AgentA (orchestrator) → [ERC-8004 discover] → [x402 pay] → AgentB
 
 ---
 
-## ⚡ Live Performance
+## ⚡ Live Performance 🟢
+
+- [Demo](https://youtu.be/1_hBdSQvzKU) 
+[![Demo](https://img.youtube.com/vi/1_hBdSQvzKU/maxresdefault.jpg)](https://youtu.be/1_hBdSQvzKU)
 
 <!-- ═══════════════════ METRICS VISUAL ══════════════════════════ -->
 <!-- Optional: replace with /assets/metrics-bar.avif              -->
 
-> Measured from confirmed production runs on Base Sepolia.
+> Measured from confirmed production runs on Base Sepolia. ❇️
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
