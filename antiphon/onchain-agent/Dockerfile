@@ -41,8 +41,8 @@ ENV CDP_API_KEY_SECRET=build-placeholder
 RUN npm run build
 
 # Fail fast if next.config.js is missing  output: 'standalone'
-RUN test -f .next/standalone/antiphon/onchain-agent/server.js || \
-    (echo "ERROR: .next/standalone/antiphon/onchain-agent/server.js not found." && \
+RUN test -f .next/standalone/server.js || \
+    (echo "ERROR: .next/standalone/server.js not found." && \
      echo "Add  output: 'standalone'  to next.config.js and rebuild." && exit 1)
 
 # ── Stage 3: Production runner ─────────────────────────────────────────────────
@@ -56,11 +56,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser  --system --uid 1001 nextjs
 
-# Next.js standalone output
-COPY --from=builder --chown=nextjs:nodejs /app/public                                    ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/antiphon/onchain-agent   ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/node_modules             ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static                              ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public          ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static    ./.next/static
 
 # Wallet persistence directory (seeded by entrypoint.sh from WALLET_DATA_JSON)
 RUN mkdir -p /app/wallet && chown nextjs:nodejs /app/wallet

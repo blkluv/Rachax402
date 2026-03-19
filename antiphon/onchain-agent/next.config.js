@@ -1,17 +1,7 @@
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Required for Docker standalone output (Railway / Autonome deployment)
   output: "standalone",
-
-  // Pin tracing root to this package — prevents Next.js from inferring the wrong
-  // workspace root when pnpm-lock.yaml exists in a parent directory.
-  // Without this, standalone output may be incomplete.
-  outputFileTracingRoot: path.join(__dirname, "../../"),
 
   // Allow large file uploads in API routes
   experimental: {
