@@ -2,9 +2,16 @@ FROM node:20
 
 WORKDIR /app
 
-COPY . .
+# install pnpm
+RUN corepack enable
 
-RUN corepack enable && pnpm install
+# copy only needed files first (faster + safer)
+COPY package.json pnpm-lock.yaml* ./
+
+RUN pnpm install
+
+# copy rest of project
+COPY . .
 
 EXPOSE 3000
 
