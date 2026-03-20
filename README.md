@@ -47,6 +47,7 @@ User → AgentA (orchestrator) → [ERC-8004 discover] → [x402 pay] → AgentB
 
 - [Demo](https://youtu.be/1_hBdSQvzKU) 🌟
 - [Check it out](https://rachax402-agent.up.railway.app/) ❇️
+- [Read Wiki for Ideation and Investment](https://github.com/Nkovaturient/Rachax402/wiki/%F0%9F%92%B3-Project-Costs-&-Credits-%F0%9F%9F%A2-%F0%9F%92%B8%F0%9F%A4%91)
 [![Demo](https://img.youtube.com/vi/1_hBdSQvzKU/maxresdefault.jpg)](https://youtu.be/1_hBdSQvzKU)
 
 <!-- ═══════════════════ METRICS VISUAL ══════════════════════════ -->
