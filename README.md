@@ -45,7 +45,8 @@ User → AgentA (orchestrator) → [ERC-8004 discover] → [x402 pay] → AgentB
 
 ## ⚡ Live Performance 🟢
 
-- [Demo](https://youtu.be/1_hBdSQvzKU) 
+- [Demo](https://youtu.be/1_hBdSQvzKU) 🌟
+- [Check it out](https://rachax402-agent.up.railway.app/) ❇️
 [![Demo](https://img.youtube.com/vi/1_hBdSQvzKU/maxresdefault.jpg)](https://youtu.be/1_hBdSQvzKU)
 
 <!-- ═══════════════════ METRICS VISUAL ══════════════════════════ -->
